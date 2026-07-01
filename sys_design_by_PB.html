@@ -1,0 +1,1573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Design — From Zero to Deep</title>
+<style>
+  :root{
+    --ink:#16202E; --ink-soft:#4A5A70; --faint:#7C8AA0;
+    --bg:#ffffff; --bg-tint:#F2F6FB; --panel:#FAFCFE;
+    --blue:#1E5C8A; --blue-light:#E5EFF7; --blue-deep:#13456A;
+    --amber:#B26A1F; --amber-light:#FBF1E1;
+    --green:#2C7A56; --green-light:#E4F1EA;
+    --red:#BC4530; --red-light:#FAEAE6;
+    --purple:#6A4C93; --purple-light:#EEE8F5;
+    --border:#D6DFEA; --border-soft:#E8EEF5;
+    --font-sans:"Segoe UI",system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    --font-mono:ui-monospace,"SF Mono","Cascadia Code",Consolas,Menlo,monospace;
+    --maxw:840px;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--font-sans); font-size:17px; line-height:1.75;
+    -webkit-font-smoothing:antialiased;
+  }
+  /* top bar */
+  .topbar{position:fixed;top:0;left:0;right:0;height:54px;background:rgba(255,255,255,.92);
+    backdrop-filter:blur(8px);border-bottom:1px solid var(--border);z-index:50;display:flex;align-items:center;}
+  .topbar .inner{max-width:1180px;margin:0 auto;width:100%;padding:0 24px;display:flex;align-items:center;gap:14px;}
+  .topbar .mark{width:22px;height:22px;border-radius:5px;background:linear-gradient(135deg,var(--blue),var(--blue-deep));flex:none;}
+  .topbar b{font-size:15px;letter-spacing:-.2px;}
+  .topbar span{color:var(--faint);font-size:13px;}
+  #progress{position:fixed;top:54px;left:0;height:3px;width:0;background:linear-gradient(90deg,var(--blue),var(--amber));z-index:51;transition:width .1s;}
+  /* layout */
+  .wrap{max-width:1180px;margin:0 auto;padding:86px 24px 120px;display:grid;grid-template-columns:262px 1fr;gap:52px;}
+  nav.toc{position:sticky;top:84px;align-self:start;max-height:calc(100vh - 110px);overflow:auto;font-size:13.5px;line-height:1.5;padding-right:8px;}
+  nav.toc .part{font-weight:700;color:var(--ink);margin:18px 0 6px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;}
+  nav.toc .part:first-child{margin-top:0;}
+  nav.toc a{display:block;color:var(--ink-soft);text-decoration:none;padding:3px 10px;border-left:2px solid transparent;border-radius:0 4px 4px 0;}
+  nav.toc a:hover{color:var(--blue);background:var(--blue-light);}
+  nav.toc a.active{color:var(--blue-deep);border-left-color:var(--blue);background:var(--blue-light);font-weight:600;}
+  .content{min-width:0;max-width:var(--maxw);}
+  /* hero */
+  .hero{border:1px solid var(--border);border-radius:16px;padding:38px 40px;background:
+    radial-gradient(120% 120% at 0% 0%, #EAF2FA 0%, #FAFCFE 55%);margin-bottom:14px;}
+  .hero .eyebrow{font-size:12.5px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--blue);}
+  .hero h1{font-size:40px;line-height:1.08;letter-spacing:-1px;margin:.3em 0 .25em;}
+  .hero p{font-size:18px;color:var(--ink-soft);margin:.4em 0 0;max-width:64ch;}
+  .hero .meta{margin-top:20px;display:flex;flex-wrap:wrap;gap:8px;}
+  .pill{font-size:12.5px;background:#fff;border:1px solid var(--border);border-radius:999px;padding:5px 12px;color:var(--ink-soft);}
+  /* typography */
+  h2{font-size:15px;letter-spacing:1.4px;text-transform:uppercase;color:var(--blue);border-top:2px solid var(--blue);
+    padding-top:14px;margin:64px 0 6px;}
+  h3{font-size:27px;letter-spacing:-.4px;line-height:1.2;margin:30px 0 8px;}
+  h4{font-size:19px;margin:26px 0 6px;letter-spacing:-.2px;}
+  p{margin:14px 0;}
+  .lead{font-size:18.5px;color:var(--ink-soft);}
+  a.inline{color:var(--blue);}
+  strong{font-weight:650;color:#0f1a28;}
+  code{font-family:var(--font-mono);font-size:.86em;background:var(--bg-tint);border:1px solid var(--border-soft);
+    padding:1px 6px;border-radius:5px;color:var(--blue-deep);}
+  ul,ol{margin:14px 0;padding-left:22px;}
+  li{margin:7px 0;}
+  hr{border:none;border-top:1px solid var(--border-soft);margin:40px 0;}
+  .section-num{display:inline-block;font-variant-numeric:tabular-nums;color:var(--faint);font-weight:700;margin-right:10px;}
+  /* callouts */
+  .box{border-radius:12px;padding:18px 20px 18px 50px;margin:22px 0;position:relative;border:1px solid;font-size:16px;line-height:1.65;}
+  .box .tag{position:absolute;left:18px;top:18px;font-size:18px;line-height:1;}
+  .box b.t{display:block;font-size:13px;letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px;}
+  .analogy{background:var(--amber-light);border-color:#EAD6B4;}
+  .analogy b.t{color:var(--amber);}
+  .example{background:var(--blue-light);border-color:#C8DCEC;}
+  .example b.t{color:var(--blue-deep);}
+  .takeaway{background:var(--green-light);border-color:#BFE0CD;}
+  .takeaway b.t{color:var(--green);}
+  .warning{background:var(--red-light);border-color:#EFCabf;}
+  .warning b.t{color:var(--red);}
+  .deep{background:var(--purple-light);border-color:#D6C9E8;}
+  .deep b.t{color:var(--purple);}
+  /* figure */
+  figure{margin:26px 0;border:1px solid var(--border);border-radius:12px;background:var(--panel);padding:20px 18px 10px;}
+  figure svg{display:block;width:100%;height:auto;}
+  figcaption{font-size:13.5px;color:var(--faint);text-align:center;margin-top:8px;padding:0 10px 6px;}
+  /* table */
+  .tbl{width:100%;border-collapse:collapse;margin:22px 0;font-size:15px;overflow:hidden;border-radius:10px;border:1px solid var(--border);}
+  .tbl th,.tbl td{border:1px solid var(--border-soft);padding:10px 12px;text-align:left;vertical-align:top;}
+  .tbl th{background:var(--bg-tint);font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--ink-soft);}
+  .tbl tr:nth-child(even) td{background:#FBFDFE;}
+  /* svg shared classes */
+  svg text{font-family:var(--font-sans);}
+  .s-box{fill:var(--blue-light);stroke:var(--blue);stroke-width:1.5;}
+  .s-amber{fill:var(--amber-light);stroke:var(--amber);stroke-width:1.5;}
+  .s-green{fill:var(--green-light);stroke:var(--green);stroke-width:1.5;}
+  .s-purple{fill:var(--purple-light);stroke:var(--purple);stroke-width:1.5;}
+  .s-red{fill:var(--red-light);stroke:var(--red);stroke-width:1.5;}
+  .s-gray{fill:#EEF2F7;stroke:#94A3B5;stroke-width:1.5;}
+  .s-white{fill:#fff;stroke:var(--border);stroke-width:1.4;}
+  .s-lbl{fill:var(--ink);font-size:13px;font-weight:600;}
+  .s-lbl-c{fill:var(--ink);font-size:13px;font-weight:600;text-anchor:middle;}
+  .s-sub{fill:var(--ink-soft);font-size:11px;}
+  .s-sub-c{fill:var(--ink-soft);font-size:11px;text-anchor:middle;}
+  .s-edge{stroke:#7C8AA0;stroke-width:1.7;fill:none;}
+  .s-edge-b{stroke:var(--blue);stroke-width:1.7;fill:none;}
+  .s-dash{stroke:#7C8AA0;stroke-width:1.6;fill:none;stroke-dasharray:5 4;}
+  .s-title{fill:var(--ink);font-size:13px;font-weight:700;text-anchor:middle;letter-spacing:.3px;}
+  /* back to top */
+  #toTop{position:fixed;right:22px;bottom:22px;width:44px;height:44px;border-radius:50%;background:var(--blue);color:#fff;
+    border:none;font-size:20px;cursor:pointer;opacity:0;pointer-events:none;transition:opacity .25s;box-shadow:0 6px 18px rgba(20,60,100,.3);z-index:40;}
+  #toTop.show{opacity:1;pointer-events:auto;}
+  @media (max-width:1000px){
+    .wrap{grid-template-columns:1fr;gap:0;padding-top:74px;}
+    nav.toc{position:static;max-height:none;margin-bottom:24px;border:1px solid var(--border);border-radius:12px;padding:14px 16px;background:var(--panel);}
+    .content{max-width:100%;}
+    .hero h1{font-size:30px;} .hero{padding:26px 22px;}
+    h3{font-size:23px;}
+  }
+  @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto;}}
+  @media print{.topbar,nav.toc,#toTop,#progress{display:none;}.wrap{display:block;padding:0;}figure{break-inside:avoid;}}
+</style>
+</head>
+<body>
+
+<!-- global svg defs (arrowheads) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#7C8AA0"/></marker>
+  <marker id="arrowb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+    <path d="M0,0 L10,5 L0,10 z" fill="#1E5C8A"/></marker>
+</defs></svg>
+
+<header class="topbar"><div class="inner">
+  <div class="mark"></div><b>System Design</b><span>&nbsp;From Zero to Deep</span>
+</div></header>
+<div id="progress"></div>
+
+<div class="wrap">
+
+<nav class="toc" id="toc">
+  <div class="part">Start here</div>
+  <a href="#what">What is system design?</a>
+  <a href="#mental-model">The mental model</a>
+  <a href="#request-flow">Anatomy of a request</a>
+  <a href="#vocab">Key vocabulary</a>
+  <div class="part">Core building blocks</div>
+  <a href="#scalability">Scalability (scale up/out)</a>
+  <a href="#latency">Latency & throughput</a>
+  <a href="#availability">Availability & reliability</a>
+  <a href="#load-balancing">Load balancing</a>
+  <a href="#caching">Caching</a>
+  <a href="#cdn">CDN</a>
+  <a href="#databases">SQL vs NoSQL</a>
+  <a href="#replication">Replication</a>
+  <a href="#sharding">Sharding & partitioning</a>
+  <a href="#indexing">Indexing</a>
+  <a href="#cap">CAP theorem</a>
+  <a href="#consistency">Consistency models</a>
+  <a href="#queues">Message queues</a>
+  <a href="#pubsub">Publish / Subscribe</a>
+  <a href="#idempotency">Idempotency</a>
+  <a href="#apis">API design</a>
+  <a href="#rate-limiting">Rate limiting</a>
+  <a href="#proxies">Proxies</a>
+  <a href="#microservices">Monolith vs Microservices</a>
+  <div class="part">Advanced & distributed</div>
+  <a href="#consistent-hashing">Consistent hashing</a>
+  <a href="#consensus">Consensus & Raft</a>
+  <a href="#leader-election">Leader election</a>
+  <a href="#distributed-tx">2PC & Saga</a>
+  <a href="#quorum">Quorum consistency</a>
+  <a href="#event-driven">Event sourcing & CQRS</a>
+  <a href="#bloom">Bloom filters</a>
+  <a href="#resilience">Circuit breakers</a>
+  <a href="#observability">Observability</a>
+  <a href="#db-internals">B-Tree vs LSM-Tree</a>
+  <a href="#geo">Geo-distribution</a>
+  <a href="#data">Warehouses & streaming</a>
+  <div class="part">Method</div>
+  <a href="#framework">The 6-step framework</a>
+  <a href="#estimation">Back-of-envelope math</a>
+  <a href="#tradeoffs">Trade-offs cheat sheet</a>
+  <div class="part">Case studies</div>
+  <a href="#cs-url">1 · URL shortener</a>
+  <a href="#cs-twitter">2 · Twitter / X feed</a>
+  <a href="#cs-chat">3 · WhatsApp chat</a>
+  <a href="#cs-netflix">4 · Netflix streaming</a>
+  <a href="#cs-uber">5 · Uber ride-hailing</a>
+  <a href="#cs-instagram">6 · Instagram</a>
+  <a href="#cs-youtube">7 · YouTube</a>
+  <a href="#cs-search">8 · Google Search</a>
+  <a href="#cs-dropbox">9 · Dropbox sync</a>
+  <a href="#cs-amazon">10 · Amazon checkout</a>
+  <a href="#cs-ticketmaster">11 · Ticketmaster</a>
+  <a href="#cs-notification">12 · Notifications</a>
+  <div class="part">Reference</div>
+  <a href="#glossary">Glossary</a>
+  <a href="#cheatsheet">Final cheat sheet</a>
+</nav>
+
+<main class="content">
+
+<section class="hero">
+  <div class="eyebrow">A complete, plain-English guide</div>
+  <h1>System Design,<br>from zero to deep.</h1>
+  <p class="lead">How the big apps you use every day are actually built — explained with everyday analogies, clear diagrams, and twelve real-world case studies. No prior experience assumed; we finish on the advanced, distributed-systems topics that senior engineers get asked about.</p>
+  <div class="meta">
+    <span class="pill">🧭 Starts from scratch</span>
+    <span class="pill">🖼️ 30+ diagrams</span>
+    <span class="pill">🏗️ 12 case studies</span>
+    <span class="pill">🎓 Up to advanced</span>
+  </div>
+</section>
+
+<div class="box example"><span class="tag">💡</span>
+<b class="t">How to read this</b>
+Read top to bottom the first time — each idea builds on the previous one. The colored boxes are signposts: <strong>amber</strong> = an everyday analogy, <strong>blue</strong> = a real-world example, <strong>green</strong> = the one thing to remember, <strong>red</strong> = a trap or trade-off, <strong>purple</strong> = an optional deeper dive. Use the menu on the left to jump around once you know the basics.</div>
+
+<h2 id="part1"><span class="section-num">Part 1</span>Foundations</h2>
+
+<h3 id="what">What is system design, really?</h3>
+<p class="lead">System design is the craft of deciding how the pieces of a software application fit together so it stays fast, reliable, and affordable as more and more people use it.</p>
+<p>When you write a small program, you mostly think about <em>code</em>: loops, functions, classes. When you design a <em>system</em>, you zoom out and think about <em>boxes and arrows</em>: servers, databases, caches, queues — and how data flows between them. The code inside each box still matters, but the big wins and the big disasters come from how the boxes are arranged.</p>
+
+<div class="box analogy"><span class="tag">🏙️</span>
+<b class="t">Analogy — designing a city, not a house</b>
+Writing a single program is like building one house: you care about the rooms and the plumbing inside it. System design is like planning a <strong>whole city</strong>: where the roads go, how water and power reach every home, what happens during rush hour, and how the city keeps working when one power station fails. A house that works for one family can collapse into chaos when a million people move in — and that "moving in" is exactly what happens when an app gets popular.</p></div>
+
+<p>Almost every system design question is really one of these four questions in disguise:</p>
+<ul>
+  <li><strong>Will it work when it's big?</strong> (Scalability — millions of users, not ten.)</li>
+  <li><strong>Will it stay up?</strong> (Availability & reliability — what happens when something breaks, because something always breaks.)</li>
+  <li><strong>Is it fast enough?</strong> (Performance — people abandon slow apps in seconds.)</li>
+  <li><strong>Can we afford it, and can we change it later?</strong> (Cost & maintainability.)</li>
+</ul>
+<p>There is almost never a single "correct" design. The real skill is making <strong>trade-offs</strong> — knowingly giving up a little of one thing to get more of another — and being able to explain <em>why</em>. That word, <strong>trade-off</strong>, is the soul of this whole subject. Keep it in mind on every page.</p>
+
+<h3 id="mental-model">The mental model: a system is just boxes that talk</h3>
+<p>Every system, no matter how huge, is built from a small set of repeating roles. Once you can recognize these roles, even the scariest architecture diagram becomes readable. Here is the cast of characters we'll meet:</p>
+
+<figure>
+<svg viewBox="0 0 800 250" role="img" aria-label="The main components of a system: client, load balancer, servers, cache, database, queue, and CDN">
+  <text x="400" y="20" class="s-title">The recurring cast of a software system</text>
+  <!-- client -->
+  <rect x="20" y="95" width="92" height="56" rx="9" class="s-gray"/>
+  <text x="66" y="119" class="s-lbl-c">Client</text><text x="66" y="137" class="s-sub-c">app / browser</text>
+  <!-- LB -->
+  <rect x="160" y="95" width="92" height="56" rx="9" class="s-purple"/>
+  <text x="206" y="119" class="s-lbl-c">Load</text><text x="206" y="137" class="s-sub-c">balancer</text>
+  <!-- servers -->
+  <rect x="300" y="62" width="100" height="40" rx="8" class="s-box"/><text x="350" y="86" class="s-lbl-c">Server</text>
+  <rect x="300" y="112" width="100" height="40" rx="8" class="s-box"/><text x="350" y="136" class="s-lbl-c">Server</text>
+  <rect x="300" y="162" width="100" height="40" rx="8" class="s-box"/><text x="350" y="186" class="s-lbl-c">Server</text>
+  <!-- cache -->
+  <rect x="450" y="50" width="92" height="50" rx="9" class="s-amber"/>
+  <text x="496" y="72" class="s-lbl-c">Cache</text><text x="496" y="89" class="s-sub-c">fast memory</text>
+  <!-- DB -->
+  <g><ellipse cx="496" cy="150" rx="46" ry="12" class="s-green"/><rect x="450" y="150" width="92" height="50" class="s-green" stroke-dasharray="0"/><ellipse cx="496" cy="200" rx="46" ry="12" class="s-green"/><rect x="450" y="150" width="92" height="50" fill="var(--green-light)"/><ellipse cx="496" cy="150" rx="46" ry="12" class="s-green"/><text x="496" y="180" class="s-lbl-c">Database</text></g>
+  <!-- queue + workers -->
+  <rect x="600" y="55" width="86" height="40" rx="8" class="s-box" style="fill:#E0F2F1;stroke:#0E8074"/><text x="643" y="79" class="s-lbl-c">Queue</text>
+  <rect x="600" y="120" width="86" height="38" rx="8" class="s-box"/><text x="643" y="143" class="s-lbl-c">Worker</text>
+  <rect x="600" y="168" width="86" height="38" rx="8" class="s-box"/><text x="643" y="191" class="s-lbl-c">Worker</text>
+  <!-- CDN -->
+  <rect x="704" y="95" width="80" height="56" rx="9" class="s-purple" style="fill:#EEE8F5"/><text x="744" y="119" class="s-lbl-c">CDN</text><text x="744" y="137" class="s-sub-c">edge</text>
+  <!-- edges -->
+  <line x1="112" y1="123" x2="158" y2="123" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="252" y1="120" x2="298" y2="86" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="252" y1="123" x2="298" y2="132" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="252" y1="126" x2="298" y2="180" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="400" y1="100" x2="448" y2="80" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="400" y1="150" x2="448" y2="165" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="400" y1="135" x2="598" y2="80" class="s-dash" marker-end="url(#arrow)"/>
+  <line x1="643" y1="95" x2="643" y2="118" class="s-edge" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>The handful of building blocks that appear, in different combinations, in nearly every system. The rest of Part 2 explains each one.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>Client</strong> — the app on your phone or the browser tab. It asks for things.</li>
+  <li><strong>Server</strong> — a computer that listens for requests and does work (run logic, fetch data) to answer them.</li>
+  <li><strong>Database</strong> — where data is stored permanently and safely, so it survives restarts.</li>
+  <li><strong>Cache</strong> — a small, super-fast store for copies of popular data, so you don't redo slow work.</li>
+  <li><strong>Load balancer</strong> — a traffic cop that spreads incoming requests across many servers.</li>
+  <li><strong>Queue</strong> — a waiting line for work that can be done later, so the user doesn't have to wait for it.</li>
+  <li><strong>CDN</strong> — a global network of nearby copies for images, video, and files.</li>
+</ul>
+
+<h3 id="request-flow">Anatomy of a request: what happens when you open an app</h3>
+<p>Let's make it concrete. You tap a link or open an app. In the next few hundred milliseconds, a small relay race happens. Following this one journey teaches you most of the vocabulary at once.</p>
+
+<figure>
+<svg viewBox="0 0 800 300" role="img" aria-label="The journey of a single web request from browser through DNS, load balancer, server, cache and database, and back">
+  <text x="400" y="18" class="s-title">The journey of one request</text>
+  <!-- nodes -->
+  <rect x="20" y="50" width="96" height="52" rx="9" class="s-gray"/><text x="68" y="72" class="s-lbl-c">1. Browser</text><text x="68" y="90" class="s-sub-c">you tap</text>
+  <rect x="20" y="160" width="96" height="52" rx="9" class="s-white"/><text x="68" y="182" class="s-lbl-c">2. DNS</text><text x="68" y="200" class="s-sub-c">name → IP</text>
+  <rect x="180" y="160" width="100" height="52" rx="9" class="s-purple"/><text x="230" y="182" class="s-lbl-c">3. Load</text><text x="230" y="200" class="s-sub-c">balancer</text>
+  <rect x="340" y="50" width="110" height="52" rx="9" class="s-purple" style="fill:#EEE8F5"/><text x="395" y="72" class="s-lbl-c">CDN edge</text><text x="395" y="90" class="s-sub-c">images/video</text>
+  <rect x="340" y="160" width="110" height="52" rx="9" class="s-box"/><text x="395" y="182" class="s-lbl-c">4. Server</text><text x="395" y="200" class="s-sub-c">runs logic</text>
+  <rect x="520" y="95" width="96" height="50" rx="9" class="s-amber"/><text x="568" y="117" class="s-lbl-c">5. Cache</text><text x="568" y="135" class="s-sub-c">hit? skip DB</text>
+  <g><ellipse cx="568" cy="200" rx="48" ry="12" class="s-green"/><rect x="520" y="200" width="96" height="48" fill="var(--green-light)"/><line x1="520" y1="200" x2="520" y2="248" class="s-green"/><line x1="616" y1="200" x2="616" y2="248" class="s-green"/><ellipse cx="568" cy="248" rx="48" ry="12" class="s-green"/><ellipse cx="568" cy="200" rx="48" ry="12" class="s-green"/><text x="568" y="226" class="s-lbl-c">6. Database</text></g>
+  <rect x="680" y="160" width="100" height="52" rx="9" class="s-white"/><text x="730" y="182" class="s-lbl-c">7. Response</text><text x="730" y="200" class="s-sub-c">HTML/JSON</text>
+  <!-- edges -->
+  <line x1="68" y1="102" x2="68" y2="158" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="116" y1="186" x2="178" y2="186" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="280" y1="180" x2="338" y2="186" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="230" y1="160" x2="350" y2="104" class="s-dash" marker-end="url(#arrow)"/>
+  <line x1="450" y1="182" x2="518" y2="135" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="568" y1="145" x2="568" y2="186" class="s-dash" marker-end="url(#arrow)"/>
+  <line x1="450" y1="190" x2="678" y2="190" class="s-edge-b" marker-end="url(#arrowb)" transform="translate(0,8)"/>
+  <text x="250" y="150" class="s-sub-c">request</text>
+  <text x="560" y="285" class="s-sub-c">(only if cache misses)</text>
+</svg>
+<figcaption>One round trip. Steps 5–6 are where most performance work happens: a cache "hit" lets you skip the slow database entirely.</figcaption>
+</figure>
+
+<ol>
+  <li><strong>You tap.</strong> Your browser/app needs to reach the service, but it only has a name like <code>netflix.com</code>, not an address.</li>
+  <li><strong>DNS</strong> (the internet's phone book) translates that name into an <strong>IP address</strong> — the actual number where the servers live.</li>
+  <li>Your request arrives at a <strong>load balancer</strong>, which picks one healthy server out of many to handle it.</li>
+  <li>The chosen <strong>server</strong> runs the logic — "who is this user, what do they want?"</li>
+  <li>It first checks the <strong>cache</strong>. If the answer is already there (a "cache hit"), great — it skips the slow step entirely.</li>
+  <li>On a "cache miss," it asks the <strong>database</strong> for the data, which is correct but slower.</li>
+  <li>The server assembles a <strong>response</strong> and sends it back. Big files like images and video are usually served separately by a nearby <strong>CDN</strong> so they load fast.</li>
+</ol>
+
+<div class="box takeaway"><span class="tag">✅</span>
+<b class="t">Remember this</b>
+A "system" is just these components arranged so the relay race above stays fast and never fully stops — even when traffic explodes or a component dies. Every concept in Part 2 is a tool for making one of those steps faster or more reliable.</div>
+
+<h3 id="vocab">A small dictionary you'll use constantly</h3>
+<table class="tbl">
+  <tr><th>Term</th><th>Plain meaning</th></tr>
+  <tr><td><strong>Request / Response</strong></td><td>A question sent to a server, and the answer it sends back.</td></tr>
+  <tr><td><strong>Latency</strong></td><td>How long one request takes. Lower is better. Think "wait time."</td></tr>
+  <tr><td><strong>Throughput</strong></td><td>How many requests you can handle per second. Higher is better. Think "lane capacity."</td></tr>
+  <tr><td><strong>Bandwidth</strong></td><td>How much data you can move per second (e.g. for video).</td></tr>
+  <tr><td><strong>Node / Instance</strong></td><td>One running machine (real or virtual). A "cluster" is many nodes working together.</td></tr>
+  <tr><td><strong>Stateless</strong></td><td>A server that remembers nothing between requests, so any server can handle any request.</td></tr>
+  <tr><td><strong>Horizontal scaling</strong></td><td>Adding <em>more</em> machines. (Vertical = making one machine bigger.)</td></tr>
+  <tr><td><strong>Availability</strong></td><td>The % of time the system is working. "Five nines" = 99.999%.</td></tr>
+  <tr><td><strong>Replication</strong></td><td>Keeping copies of data on multiple machines for safety and speed.</td></tr>
+  <tr><td><strong>Sharding / Partitioning</strong></td><td>Splitting one giant dataset across many machines.</td></tr>
+  <tr><td><strong>Consistency</strong></td><td>Whether everyone sees the same, latest data at the same time.</td></tr>
+  <tr><td><strong>SLA / SLO</strong></td><td>A promise about reliability/speed (SLA = the contract, SLO = the internal target).</td></tr>
+</table>
+<p>Don't memorize these now — they'll stick naturally as we use them. On to the building blocks.</p>
+
+<h2 id="part2"><span class="section-num">Part 2</span>Core Building Blocks</h2>
+
+<h3 id="scalability">Scalability — handling 10 users vs 10 million</h3>
+<p class="lead">Scalability is a system's ability to keep working well as the load grows. There are two ways to scale, and the choice shapes everything else.</p>
+
+<figure>
+<svg viewBox="0 0 800 250" role="img" aria-label="Vertical scaling makes one server bigger; horizontal scaling adds more servers behind a load balancer">
+  <text x="200" y="20" class="s-title">Vertical scaling — make it BIGGER</text>
+  <text x="600" y="20" class="s-title">Horizontal scaling — make it MANY</text>
+  <line x1="400" y1="34" x2="400" y2="240" stroke="var(--border)" stroke-dasharray="4 4"/>
+  <!-- vertical -->
+  <rect x="150" y="150" width="100" height="50" rx="8" class="s-box"/><text x="200" y="180" class="s-lbl-c">Server</text>
+  <rect x="135" y="95" width="130" height="60" rx="8" class="s-box"/><text x="200" y="122" class="s-lbl-c">Bigger server</text><text x="200" y="140" class="s-sub-c">more CPU + RAM</text>
+  <line x1="200" y1="150" x2="200" y2="120" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <text x="200" y="225" class="s-sub-c">one machine, upgraded</text>
+  <!-- horizontal -->
+  <rect x="555" y="55" width="90" height="42" rx="8" class="s-purple"/><text x="600" y="81" class="s-lbl-c">Load bal.</text>
+  <rect x="490" y="130" width="74" height="40" rx="8" class="s-box"/><text x="527" y="155" class="s-lbl-c">Srv</text>
+  <rect x="563" y="130" width="74" height="40" rx="8" class="s-box"/><text x="600" y="155" class="s-lbl-c">Srv</text>
+  <rect x="636" y="130" width="74" height="40" rx="8" class="s-box"/><text x="673" y="155" class="s-lbl-c">Srv</text>
+  <line x1="600" y1="97" x2="527" y2="128" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="600" y1="97" x2="600" y2="128" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="600" y1="97" x2="673" y2="128" class="s-edge" marker-end="url(#arrow)"/>
+  <text x="600" y="200" class="s-sub-c">many machines, add more anytime</text>
+</svg>
+<figcaption>Vertical scaling upgrades one machine; horizontal scaling adds machines. Big systems rely on horizontal scaling because there's no ceiling and no single point of failure.</figcaption>
+</figure>
+
+<h4>Vertical scaling (scale up)</h4>
+<p>Make a single machine more powerful — more CPU, more memory, faster disks.</p>
+<div class="box analogy"><span class="tag">🍳</span><b class="t">Analogy</b>
+Vertical scaling is hiring one <strong>superhuman chef</strong> who can cook faster and faster. Simple — but there's a limit to how fast one person can chop, and if that chef calls in sick, the kitchen is closed.</div>
+<p><strong>Pros:</strong> dead simple, no code changes. <strong>Cons:</strong> there's a hard physical ceiling, it gets very expensive at the top end, and that one machine is a <strong>single point of failure</strong> — if it dies, everything dies.</p>
+
+<h4>Horizontal scaling (scale out)</h4>
+<p>Add more machines and split the work between them with a load balancer.</p>
+<div class="box analogy"><span class="tag">🍳</span><b class="t">Analogy</b>
+Horizontal scaling is hiring <strong>more ordinary chefs</strong>. You can keep adding cooks as the restaurant gets busier, and if one is sick, the others carry on. The catch: now you need a head chef (the load balancer) to assign orders, and the cooks must not rely on private notes only they can read (they must be <strong>stateless</strong>).</div>
+<p><strong>Pros:</strong> nearly unlimited growth, and built-in fault tolerance — lose one node, the rest keep serving. <strong>Cons:</strong> more moving parts, and your servers must be designed to cooperate (this is why <strong>statelessness</strong> matters so much).</p>
+
+<div class="box takeaway"><span class="tag">✅</span><b class="t">Remember this</b>
+Start vertical (it's simple); go horizontal when you need real scale or can't tolerate a single point of failure. Almost every large system in the case studies later is horizontally scaled.</div>
+
+<h3 id="latency">Latency, throughput & the numbers every engineer knows</h3>
+<p><strong>Latency</strong> = how long <em>one</em> operation takes. <strong>Throughput</strong> = how <em>many</em> operations finish per second. They are different, and confusing them causes bad designs.</p>
+<div class="box analogy"><span class="tag">🛣️</span><b class="t">Analogy — a highway</b>
+<strong>Latency</strong> is how long <em>your</em> car takes to drive from A to B. <strong>Throughput</strong> is how many cars pass through per minute. Adding lanes (more servers) raises throughput but doesn't make your individual drive faster. Raising the speed limit (a faster server) lowers latency. You often want both — but you tune them with different tools.</div>
+<p>A crucial subtlety: <strong>don't measure latency with averages — use percentiles.</strong> "p99 latency of 300ms" means 99% of requests finish within 300ms. The average hides the painful tail: if 1% of requests take 5 seconds, the average looks fine while a million users have a terrible experience. Engineers obsess over <strong>p95 and p99</strong> because that tail is where users actually suffer.</p>
+<div class="box deep"><span class="tag">🔬</span><b class="t">Latency numbers worth internalizing (rough orders of magnitude)</b>
+Reading from <strong>memory (RAM)</strong>: ~100 nanoseconds. Reading from a fast <strong>SSD</strong>: ~100 microseconds (1,000× slower). A <strong>network round trip within a data center</strong>: ~0.5 milliseconds. A round trip <strong>across the world</strong>: ~150 milliseconds. The lesson baked into all caching: memory is absurdly faster than disk, and disk is faster than the network. Keep hot data as close to memory — and as close to the user — as you can.</div>
+
+<h3 id="availability">Availability, reliability & fault tolerance</h3>
+<p>These three are about one truth: <strong>everything fails eventually</strong> — disks die, networks drop, a deploy goes wrong, a whole data center loses power. Good design assumes failure and survives it.</p>
+<ul>
+  <li><strong>Reliability</strong> — the system gives correct results and doesn't lose your data, even under stress.</li>
+  <li><strong>Availability</strong> — the system is reachable and responding right now. Measured in "nines."</li>
+  <li><strong>Fault tolerance</strong> — the system keeps working <em>despite</em> a component failing, usually through redundancy (spare copies ready to take over).</li>
+</ul>
+<table class="tbl">
+  <tr><th>"Nines"</th><th>Availability</th><th>Downtime per year</th><th>Feel</th></tr>
+  <tr><td>Two nines</td><td>99%</td><td>~3.65 days</td><td>Hobby project</td></tr>
+  <tr><td>Three nines</td><td>99.9%</td><td>~8.8 hours</td><td>Typical web app</td></tr>
+  <tr><td>Four nines</td><td>99.99%</td><td>~52 minutes</td><td>Serious business</td></tr>
+  <tr><td>Five nines</td><td>99.999%</td><td>~5 minutes</td><td>Telecom / banking</td></tr>
+</table>
+<div class="box warning"><span class="tag">⚠️</span><b class="t">Trade-off — every extra nine costs more</b>
+Going from 99% to 99.999% can multiply cost and complexity enormously (redundancy everywhere, multi-region failover, fewer risky deploys). The mature question isn't "how do we never fail?" but "how reliable do we actually need to be, and what will that cost?" Chasing 100% is a trap — it's impossible and infinitely expensive.</div>
+<p>The main tool is <strong>redundancy</strong>: never have exactly one of anything critical. Two of everything (servers, databases, even data centers) so the spare takes over when the primary fails. We'll see this everywhere.</p>
+
+<h3 id="load-balancing">Load balancing — the traffic cop</h3>
+<p>A load balancer (LB) sits in front of your servers and distributes incoming requests across them. It's what makes horizontal scaling actually work, and it quietly delivers high availability too.</p>
+
+<figure>
+<svg viewBox="0 0 760 230" role="img" aria-label="A load balancer distributing requests across three servers and routing around an unhealthy one">
+  <text x="380" y="18" class="s-title">Load balancer: spread traffic, skip the sick server</text>
+  <rect x="30" y="90" width="90" height="48" rx="9" class="s-gray"/><text x="75" y="119" class="s-lbl-c">Clients</text>
+  <rect x="200" y="86" width="110" height="56" rx="10" class="s-purple"/><text x="255" y="110" class="s-lbl-c">Load</text><text x="255" y="128" class="s-sub-c">balancer</text>
+  <rect x="420" y="30" width="120" height="44" rx="8" class="s-box"/><text x="480" y="56" class="s-lbl-c">Server A ✓</text>
+  <rect x="420" y="92" width="120" height="44" rx="8" class="s-box"/><text x="480" y="118" class="s-lbl-c">Server B ✓</text>
+  <rect x="420" y="154" width="120" height="44" rx="8" class="s-red"/><text x="480" y="180" class="s-lbl-c">Server C ✗ down</text>
+  <line x1="120" y1="114" x2="198" y2="114" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="310" y1="108" x2="418" y2="55" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="310" y1="114" x2="418" y2="114" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="310" y1="120" x2="418" y2="176" class="s-dash"/>
+  <text x="600" y="118" class="s-sub">health checks decide<tspan x="600" dy="15">who gets traffic</tspan></text>
+</svg>
+<figcaption>The LB constantly "health-checks" servers and sends traffic only to healthy ones — so a dead server is invisible to users.</figcaption>
+</figure>
+
+<p>It does two jobs at once:</p>
+<ul>
+  <li><strong>Spreads load</strong> so no single server is overwhelmed.</li>
+  <li><strong>Routes around failure</strong> — it pings each server with "health checks" and stops sending traffic to one that stops responding. Users never notice.</li>
+</ul>
+<p><strong>How does it pick a server?</strong> Common strategies: <strong>round-robin</strong> (take turns, one after another), <strong>least connections</strong> (send to whoever's least busy), or <strong>hashing</strong> (always send the same user to the same server). Most apps use round-robin or least-connections on stateless servers.</p>
+<div class="box analogy"><span class="tag">🛒</span><b class="t">Analogy</b>
+A load balancer is the person at a busy supermarket directing shoppers: "Register 3 is free, go there." If a register closes, they simply stop sending people to it. Shoppers get checked out faster and never wait at a closed lane.</div>
+
+<h3 id="caching">Caching — the single biggest speed trick</h3>
+<p class="lead">A cache stores a copy of data somewhere fast (usually memory), so the next time someone asks for it, you skip the slow work of recomputing or re-fetching it.</p>
+<div class="box analogy"><span class="tag">📒</span><b class="t">Analogy</b>
+Caching is keeping your most-used phone numbers on a sticky note by the phone instead of looking them up in a thick phone book every time. The sticky note (cache) is instant; the phone book (database) is slow but complete. You only open the book when the note doesn't have the number.</div>
+<p>Caches live at many layers, each closer to the user than the last:</p>
+
+<figure>
+<svg viewBox="0 0 780 150" role="img" aria-label="Caching layers from browser to CDN to server-side cache to database">
+  <rect x="20" y="55" width="120" height="56" rx="9" class="s-gray"/><text x="80" y="79" class="s-lbl-c">Browser</text><text x="80" y="97" class="s-sub-c">local cache</text>
+  <rect x="180" y="55" width="120" height="56" rx="9" class="s-purple" style="fill:#EEE8F5"/><text x="240" y="79" class="s-lbl-c">CDN</text><text x="240" y="97" class="s-sub-c">edge cache</text>
+  <rect x="340" y="55" width="130" height="56" rx="9" class="s-amber"/><text x="405" y="79" class="s-lbl-c">App cache</text><text x="405" y="97" class="s-sub-c">Redis / memory</text>
+  <g><ellipse cx="600" cy="62" rx="50" ry="12" class="s-green"/><rect x="550" y="62" width="100" height="48" fill="var(--green-light)"/><line x1="550" y1="62" x2="550" y2="110" class="s-green"/><line x1="650" y1="62" x2="650" y2="110" class="s-green"/><ellipse cx="600" cy="110" rx="50" ry="12" class="s-green"/><ellipse cx="600" cy="62" rx="50" ry="12" class="s-green"/><text x="600" y="90" class="s-lbl-c">Database</text></g>
+  <line x1="140" y1="83" x2="178" y2="83" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="300" y1="83" x2="338" y2="83" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="470" y1="83" x2="548" y2="83" class="s-edge" marker-end="url(#arrow)"/>
+  <text x="400" y="135" class="s-sub-c">Each layer answers what it can; only true misses fall through to the slow database on the right.</text>
+</svg>
+<figcaption>Caching layers. The further left you can answer a request, the faster and cheaper it is.</figcaption>
+</figure>
+
+<p><strong>The trade-off that defines caching:</strong> a cache is a <em>copy</em>, and copies go stale. The data in the cache might be older than the real data in the database. So caching is fundamentally a bargain: <strong>speed in exchange for the risk of slightly stale data.</strong> That's fine for a product description; it's dangerous for your bank balance.</p>
+<p>Two ideas you must know:</p>
+<ul>
+  <li><strong>TTL (time to live)</strong> — each cached item gets an expiry (say 60 seconds). After that it's thrown away and re-fetched fresh. This bounds how stale data can get.</li>
+  <li><strong>Eviction policy</strong> — caches are small, so when full they must drop something. <strong>LRU (Least Recently Used)</strong> is the classic: throw out whatever hasn't been touched in the longest time.</li>
+  <li><strong>Cache invalidation</strong> — when the real data changes, you must update or delete the cached copy, or users see old data. This is famously one of the hardest problems in computing.</li>
+</ul>
+<div class="box example"><span class="tag">🌐</span><b class="t">Real-world example</b>
+When a tweet goes viral, millions request the same content. Reading it from the database every time would melt it. Instead the tweet sits in an in-memory cache (like Redis), served millions of times without the database doing any extra work. The database is touched once; the cache absorbs the storm.</div>
+<div class="box warning"><span class="tag">⚠️</span><b class="t">Watch out — the "thundering herd"</b>
+If a super-popular cached item expires and a million requests arrive in the same instant, they <em>all</em> miss the cache and stampede the database at once. Defenses: refresh hot items slightly before they expire, or let only one request rebuild the cache while others wait.</div>
+
+<h3 id="cdn">CDN — bringing data physically closer</h3>
+<p>A <strong>Content Delivery Network</strong> is a global fleet of servers (called "edge" servers) that keep cached copies of your static content — images, videos, CSS, JavaScript — in many cities around the world. Users are served from the location nearest them.</p>
+<div class="box analogy"><span class="tag">📦</span><b class="t">Analogy</b>
+Imagine a popular book printed only in one country. Everyone abroad waits weeks for shipping. A CDN is like printing copies in <strong>every major city</strong>: now everyone grabs a local copy instantly. The "book" is your video or image; the local print shops are edge servers.</div>
+<p>Why it matters: physics. Data can't travel faster than light, so a user in Tokyo fetching a video from a server in Virginia pays a real distance penalty (~150ms each way, plus the size of the video). Serving it from a Tokyo edge server cuts that to a few milliseconds and slashes the load on your main servers.</p>
+<div class="box example"><span class="tag">🎬</span><b class="t">Real-world example</b>
+Over 90% of Netflix's traffic is video, and almost none of it comes from Netflix's core servers — it streams from CDN boxes placed inside or near your internet provider. We'll see exactly how in the Netflix case study.</div>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">Remember this</b>
+Caching saves you from redoing slow <em>work</em>; a CDN saves you from long <em>distances</em>. Together they handle the vast majority of read traffic for big apps, leaving your databases free for the hard stuff.</div>
+
+<h3 id="databases">Databases: SQL vs NoSQL</h3>
+<p class="lead">The database is where your data lives permanently. The first big fork in any design is choosing what <em>kind</em> of database — and the two families, SQL and NoSQL, are built on opposite bets.</p>
+
+<figure>
+<svg viewBox="0 0 780 220" role="img" aria-label="SQL stores data in structured tables with rows and columns; NoSQL stores flexible documents">
+  <text x="195" y="18" class="s-title">SQL — rigid tables, related to each other</text>
+  <text x="585" y="18" class="s-title">NoSQL — flexible documents</text>
+  <line x1="390" y1="30" x2="390" y2="210" stroke="var(--border)" stroke-dasharray="4 4"/>
+  <!-- SQL table -->
+  <rect x="40" y="45" width="300" height="150" rx="8" class="s-white"/>
+  <line x1="40" y1="75" x2="340" y2="75" stroke="var(--blue)" stroke-width="1.4"/>
+  <line x1="130" y1="45" x2="130" y2="195" stroke="var(--border)"/>
+  <line x1="235" y1="45" x2="235" y2="195" stroke="var(--border)"/>
+  <text x="85" y="66" class="s-sub-c">id</text><text x="182" y="66" class="s-sub-c">name</text><text x="288" y="66" class="s-sub-c">city</text>
+  <text x="85" y="96" class="s-sub-c">1</text><text x="182" y="96" class="s-sub-c">Asha</text><text x="288" y="96" class="s-sub-c">Delhi</text>
+  <text x="85" y="121" class="s-sub-c">2</text><text x="182" y="121" class="s-sub-c">Ben</text><text x="288" y="121" class="s-sub-c">Pune</text>
+  <text x="85" y="146" class="s-sub-c">3</text><text x="182" y="146" class="s-sub-c">Cara</text><text x="288" y="146" class="s-sub-c">Delhi</text>
+  <text x="190" y="180" class="s-sub-c">every row has the same columns</text>
+  <!-- NoSQL doc -->
+  <rect x="440" y="45" width="300" height="150" rx="8" class="s-white"/>
+  <text x="455" y="72" class="s-lbl" style="font-family:var(--font-mono);font-size:12px;fill:var(--green)">{ "id": 1, "name": "Asha",</text>
+  <text x="470" y="92" class="s-lbl" style="font-family:var(--font-mono);font-size:12px;fill:var(--ink)">"city": "Delhi",</text>
+  <text x="470" y="112" class="s-lbl" style="font-family:var(--font-mono);font-size:12px;fill:var(--ink)">"hobbies": ["chess"] }</text>
+  <text x="455" y="142" class="s-lbl" style="font-family:var(--font-mono);font-size:12px;fill:var(--green)">{ "id": 2, "name": "Ben",</text>
+  <text x="470" y="162" class="s-lbl" style="font-family:var(--font-mono);font-size:12px;fill:var(--ink)">"phone": "..." }</text>
+  <text x="590" y="186" class="s-sub-c">each record can have different fields</text>
+</svg>
+<figcaption>SQL enforces one strict shape for all rows; NoSQL lets each record carry whatever fields it needs.</figcaption>
+</figure>
+
+<h4>SQL (relational) databases — e.g. PostgreSQL, MySQL, SQL Server</h4>
+<p>Data lives in <strong>tables</strong> with a fixed structure (a "schema"): rows and columns, like a spreadsheet. Tables relate to each other (a user has many orders). They speak <strong>SQL</strong>, a powerful query language, and they guarantee <strong>ACID</strong> — the gold standard for correctness.</p>
+<div class="box deep"><span class="tag">🔬</span><b class="t">ACID, in plain words</b>
+<strong>A</strong>tomicity: a multi-step operation either fully happens or not at all (no half-done money transfer). <strong>C</strong>onsistency: the data always obeys its rules. <strong>I</strong>solation: simultaneous operations don't corrupt each other. <strong>D</strong>urability: once it says "saved," it survives a crash. This is why banks use SQL — you cannot lose half a transaction.</div>
+<p><strong>Best when:</strong> data is structured and related, and correctness is critical — payments, orders, inventory, anything involving money or strict rules.</p>
+
+<h4>NoSQL databases — e.g. MongoDB, Cassandra, DynamoDB, Redis</h4>
+<p>"NoSQL" means "not only SQL" — a family of databases that drop the rigid table model for <strong>flexibility and massive scale</strong>. Common types: <strong>document</strong> stores (JSON-like records), <strong>key-value</strong> stores (a giant dictionary), <strong>wide-column</strong> stores (built for enormous write volumes), and <strong>graph</strong> databases (relationships first).</p>
+<p>They typically scale horizontally with ease and handle huge volumes, but many trade away strict consistency (offering <strong>"eventual consistency"</strong> instead) and rich querying to get there.</p>
+<p><strong>Best when:</strong> huge scale, flexible or rapidly-changing data shapes, or simple high-speed lookups — user sessions, activity feeds, product catalogs, IoT sensor data, caches.</p>
+
+<table class="tbl">
+  <tr><th></th><th>SQL (Relational)</th><th>NoSQL</th></tr>
+  <tr><td><strong>Structure</strong></td><td>Fixed schema, tables</td><td>Flexible, varies by record</td></tr>
+  <tr><td><strong>Scaling</strong></td><td>Mostly vertical (harder to scale out)</td><td>Built for horizontal</td></tr>
+  <tr><td><strong>Consistency</strong></td><td>Strong (ACID)</td><td>Often eventual (tunable)</td></tr>
+  <tr><td><strong>Relationships / joins</strong></td><td>Excellent</td><td>Weak — you design around them</td></tr>
+  <tr><td><strong>Sweet spot</strong></td><td>Money, orders, strict rules</td><td>Scale, flexibility, speed</td></tr>
+</table>
+<div class="box warning"><span class="tag">⚠️</span><b class="t">Don't fall for "NoSQL is newer, so better"</b>
+They solve different problems. Real systems frequently use <strong>both</strong> — SQL for the transactional core (payments) and NoSQL for the high-scale parts (feeds, sessions, search). Choosing is a trade-off about your data and your correctness needs, not a fashion contest.</div>
+
+<h3 id="replication">Replication — copies for safety and speed</h3>
+<p>Replication means keeping the same data on multiple database machines. If you have only one database and it dies, you've lost everything and you're offline. Replication fixes both problems: <strong>durability</strong> (a copy survives) and <strong>read speed</strong> (many copies can answer reads in parallel).</p>
+
+<figure>
+<svg viewBox="0 0 720 220" role="img" aria-label="A primary database handles writes and copies changes to follower replicas that handle reads">
+  <text x="360" y="18" class="s-title">Leader–follower replication</text>
+  <rect x="40" y="90" width="80" height="44" rx="8" class="s-gray"/><text x="80" y="117" class="s-lbl-c">App</text>
+  <!-- primary -->
+  <g><ellipse cx="280" cy="55" rx="55" ry="13" class="s-green"/><rect x="225" y="55" width="110" height="48" fill="var(--green-light)"/><line x1="225" y1="55" x2="225" y2="103" class="s-green"/><line x1="335" y1="55" x2="335" y2="103" class="s-green"/><ellipse cx="280" cy="103" rx="55" ry="13" class="s-green"/><ellipse cx="280" cy="55" rx="55" ry="13" class="s-green"/><text x="280" y="84" class="s-lbl-c">Primary</text></g>
+  <text x="280" y="125" class="s-sub-c">handles all WRITES</text>
+  <!-- followers -->
+  <g><ellipse cx="540" cy="40" rx="48" ry="11" class="s-white"/><rect x="492" y="40" width="96" height="40" fill="#fff"/><line x1="492" y1="40" x2="492" y2="80" stroke="var(--border)"/><line x1="588" y1="40" x2="588" y2="80" stroke="var(--border)"/><ellipse cx="540" cy="80" rx="48" ry="11" class="s-white"/><ellipse cx="540" cy="40" rx="48" ry="11" class="s-white"/><text x="540" y="66" class="s-sub-c">Replica</text></g>
+  <g><ellipse cx="540" cy="135" rx="48" ry="11" class="s-white"/><rect x="492" y="135" width="96" height="40" fill="#fff"/><line x1="492" y1="135" x2="492" y2="175" stroke="var(--border)"/><line x1="588" y1="135" x2="588" y2="175" stroke="var(--border)"/><ellipse cx="540" cy="175" rx="48" ry="11" class="s-white"/><ellipse cx="540" cy="135" rx="48" ry="11" class="s-white"/><text x="540" y="161" class="s-sub-c">Replica</text></g>
+  <line x1="120" y1="105" x2="223" y2="85" class="s-edge-b" marker-end="url(#arrowb)"/><text x="165" y="80" class="s-sub-c">write</text>
+  <line x1="335" y1="70" x2="490" y2="55" class="s-dash" marker-end="url(#arrow)"/>
+  <line x1="335" y1="85" x2="490" y2="150" class="s-dash" marker-end="url(#arrow)"/>
+  <text x="430" y="105" class="s-sub-c">copy changes</text>
+  <line x1="120" y1="118" x2="490" y2="165" class="s-edge" marker-end="url(#arrow)"/><text x="250" y="160" class="s-sub-c">reads can hit any replica</text>
+</svg>
+<figcaption>The most common pattern: one primary takes writes and streams its changes to read-only replicas, multiplying read capacity.</figcaption>
+</figure>
+
+<p>The classic pattern is <strong>leader–follower</strong> (also called primary–replica): one machine (the leader) accepts all <strong>writes</strong>, then copies every change to follower machines that serve <strong>reads</strong>. Since most apps read far more than they write, this scales reads beautifully. If the leader dies, a follower is promoted to become the new leader (<em>failover</em>).</p>
+<div class="box warning"><span class="tag">⚠️</span><b class="t">The catch — replication lag</b>
+Copying takes a moment. For a few milliseconds, a replica might be slightly behind the leader. So if you write data and immediately read it from a replica, you might not see your own change yet. This tiny delay is <strong>replication lag</strong>, and it's the seed of the "eventual consistency" idea we'll formalize in CAP.</div>
+
+<h3 id="sharding">Sharding & partitioning — splitting a dataset too big for one machine</h3>
+<p>Replication copies the <em>whole</em> dataset onto each machine — but what if the dataset itself is too big for any single machine (say, billions of users)? Then you <strong>shard</strong>: split the data into pieces and put each piece on a different machine. Each shard holds only a slice of the total.</p>
+<div class="box analogy"><span class="tag">📚</span><b class="t">Analogy — a library with too many books</b>
+One building can't hold every book. So you split by author surname: A–F in building 1, G–M in building 2, and so on. To find a book you go straight to the right building. Each building (shard) is smaller and faster, and together they hold everything. The "surname" you split on is the <strong>shard key</strong>.</div>
+
+<figure>
+<svg viewBox="0 0 720 170" role="img" aria-label="A router sends each user to the shard that holds their data based on a shard key">
+  <text x="360" y="16" class="s-title">Sharding by user id</text>
+  <rect x="40" y="65" width="90" height="44" rx="8" class="s-gray"/><text x="85" y="92" class="s-lbl-c">App</text>
+  <rect x="180" y="62" width="100" height="50" rx="9" class="s-purple"/><text x="230" y="84" class="s-lbl-c">Router</text><text x="230" y="100" class="s-sub-c">picks shard</text>
+  <g><ellipse cx="430" cy="35" rx="44" ry="11" class="s-green"/><rect x="386" y="35" width="88" height="34" fill="var(--green-light)"/><line x1="386" y1="35" x2="386" y2="69" class="s-green"/><line x1="474" y1="35" x2="474" y2="69" class="s-green"/><ellipse cx="430" cy="69" rx="44" ry="11" class="s-green"/><ellipse cx="430" cy="35" rx="44" ry="11" class="s-green"/><text x="430" y="58" class="s-sub-c">Shard 1</text></g>
+  <g><ellipse cx="430" cy="92" rx="44" ry="11" class="s-green"/><rect x="386" y="92" width="88" height="34" fill="var(--green-light)"/><line x1="386" y1="92" x2="386" y2="126" class="s-green"/><line x1="474" y1="92" x2="474" y2="126" class="s-green"/><ellipse cx="430" cy="126" rx="44" ry="11" class="s-green"/><ellipse cx="430" cy="92" rx="44" ry="11" class="s-green"/><text x="430" y="115" class="s-sub-c">Shard 2</text></g>
+  <g><ellipse cx="620" cy="63" rx="44" ry="11" class="s-green"/><rect x="576" y="63" width="88" height="34" fill="var(--green-light)"/><line x1="576" y1="63" x2="576" y2="97" class="s-green"/><line x1="664" y1="63" x2="664" y2="97" class="s-green"/><ellipse cx="620" cy="97" rx="44" ry="11" class="s-green"/><ellipse cx="620" cy="63" rx="44" ry="11" class="s-green"/><text x="620" y="86" class="s-sub-c">Shard 3</text></g>
+  <line x1="130" y1="87" x2="178" y2="87" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="280" y1="82" x2="384" y2="52" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="280" y1="87" x2="384" y2="108" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="280" y1="92" x2="574" y2="80" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <text x="150" y="58" class="s-sub-c">"user 42"</text>
+</svg>
+<figcaption>A router uses the shard key (e.g. user id) to send each request to the one shard holding that data.</figcaption>
+</figure>
+
+<p>Sharding is powerful but introduces real pain, so it's a <em>last resort</em> after caching and replication:</p>
+<ul>
+  <li><strong>Choosing the shard key is critical.</strong> A bad key creates "hot shards" — if you shard by country and one country has most of your users, that shard melts while others idle.</li>
+  <li><strong>Cross-shard queries are hard.</strong> "List all users sorted by signup date" now has to ask every shard and merge results.</li>
+  <li><strong>Rebalancing is painful.</strong> Adding a shard can require moving huge amounts of data (this is exactly what <a href="#consistent-hashing" class="inline">consistent hashing</a> later solves).</li>
+</ul>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">Replication vs sharding — don't confuse them</b>
+<strong>Replication = same data, many copies</strong> (for safety + read speed). <strong>Sharding = different data on each machine</strong> (for storing more than one machine can hold). Big systems use both: shard the data, then replicate each shard.</div>
+
+<h3 id="indexing">Indexing — how databases find things fast</h3>
+<p>An index is a separate, sorted data structure the database keeps so it can locate rows without scanning the entire table. Without an index, finding one user among a billion means checking them one by one (a "full table scan"). With an index, it's near-instant.</p>
+<div class="box analogy"><span class="tag">📖</span><b class="t">Analogy</b>
+An index is exactly the index at the back of a textbook. To find "photosynthesis," you don't read all 800 pages — you flip to the index, see "page 214," and jump there. The database does the same: the index tells it precisely where the data lives.</div>
+<p>Indexes make reads dramatically faster — but nothing is free:</p>
+<div class="box warning"><span class="tag">⚠️</span><b class="t">Trade-off</b>
+Every index must be <strong>updated on every write</strong> (insert/update/delete), so each extra index slows writes and uses more storage. "Index everything" is a classic mistake — it cripples write-heavy systems. Index the columns you actually search and join on, and no more.</div>
+<p>(Under the hood, most SQL indexes are <strong>B-Trees</strong>; many high-write NoSQL stores use <strong>LSM-Trees</strong>. We cover the difference in the <a href="#db-internals" class="inline">database internals</a> section.)</p>
+
+<h3 id="cap">The CAP theorem — the most important trade-off in distributed data</h3>
+<p class="lead">Once your data lives on multiple machines, you face a law of nature. The CAP theorem says: when the network between your machines breaks, you can have <strong>Consistency</strong> or <strong>Availability</strong>, but not both. You must choose.</p>
+<p>The three letters:</p>
+<ul>
+  <li><strong>C — Consistency:</strong> every read sees the latest write. Everyone agrees on the current value.</li>
+  <li><strong>A — Availability:</strong> every request gets an answer (not an error), even if it might be slightly out of date.</li>
+  <li><strong>P — Partition tolerance:</strong> the system keeps working even when the network between nodes is cut. In the real world networks <em>do</em> fail, so <strong>P is mandatory</strong> — which means the real choice is between C and A.</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 720 250" role="img" aria-label="CAP theorem: during a network partition you must choose between consistency and availability">
+  <text x="360" y="18" class="s-title">A network partition forces a choice</text>
+  <g><ellipse cx="150" cy="120" rx="48" ry="12" class="s-green"/><rect x="102" y="120" width="96" height="44" fill="var(--green-light)"/><line x1="102" y1="120" x2="102" y2="164" class="s-green"/><line x1="198" y1="120" x2="198" y2="164" class="s-green"/><ellipse cx="150" cy="164" rx="48" ry="12" class="s-green"/><ellipse cx="150" cy="120" rx="48" ry="12" class="s-green"/><text x="150" y="148" class="s-lbl-c">Node A</text></g>
+  <g><ellipse cx="570" cy="120" rx="48" ry="12" class="s-green"/><rect x="522" y="120" width="96" height="44" fill="var(--green-light)"/><line x1="522" y1="120" x2="522" y2="164" class="s-green"/><line x1="618" y1="120" x2="618" y2="164" class="s-green"/><ellipse cx="570" cy="164" rx="48" ry="12" class="s-green"/><ellipse cx="570" cy="120" rx="48" ry="12" class="s-green"/><text x="570" y="148" class="s-lbl-c">Node B</text></g>
+  <line x1="200" y1="140" x2="520" y2="140" class="s-dash"/>
+  <text x="360" y="110" style="fill:var(--red);font-size:30px;text-anchor:middle">✂</text>
+  <text x="360" y="160" class="s-sub-c" style="fill:var(--red)">network cut</text>
+  <rect x="60" y="195" width="280" height="44" rx="8" class="s-box"/>
+  <text x="200" y="213" class="s-lbl-c">Choose C: refuse the request</text><text x="200" y="229" class="s-sub-c">stay correct, but unavailable</text>
+  <rect x="380" y="195" width="280" height="44" rx="8" class="s-amber"/>
+  <text x="520" y="213" class="s-lbl-c">Choose A: answer with old data</text><text x="520" y="229" class="s-sub-c">stay up, but maybe stale</text>
+</svg>
+<figcaption>If A and B can't talk and a write hits A, you either reject reads on B (consistent) or let B serve stale data (available). You can't do both.</figcaption>
+</figure>
+
+<div class="box analogy"><span class="tag">📞</span><b class="t">Analogy — two shop tills that lost contact</b>
+Two cashiers normally sync their inventory count, but the phone line between them drops. A customer asks cashier B "is this in stock?" Cashier B has two choices: say "I can't be sure right now, please wait" (<strong>consistency</strong> — correct but unhelpful), or answer from their possibly-outdated count (<strong>availability</strong> — helpful but maybe wrong). There's no way to be both perfectly correct <em>and</em> instantly responsive while disconnected.</div>
+
+<p>This is why systems are described as <strong>CP</strong> or <strong>AP</strong>:</p>
+<ul>
+  <li><strong>CP (consistency over availability):</strong> banks, inventory, anything where wrong data is worse than a brief error. (e.g. traditional SQL setups, HBase, ZooKeeper.)</li>
+  <li><strong>AP (availability over consistency):</strong> social feeds, likes, "last seen" — better to always respond, even if a like count is a second stale. (e.g. Cassandra, DynamoDB defaults.)</li>
+</ul>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">Remember this</b>
+CAP is the deep reason behind a thousand design decisions. When you see a system "choose availability," it's accepting eventual consistency to keep responding. When it "chooses consistency," it accepts that some requests fail during trouble. Knowing which your feature needs is half of system design.</div>
+
+<h3 id="consistency">Consistency models — the spectrum between "always correct" and "eventually correct"</h3>
+<p>"Consistency" isn't all-or-nothing; it's a dial. The two ends:</p>
+<ul>
+  <li><strong>Strong consistency:</strong> the instant a write succeeds, every reader everywhere sees it. Simple to reason about, but slower and harder to keep available (it's the "C" in CAP). Use for money and inventory.</li>
+  <li><strong>Eventual consistency:</strong> after a write, readers might briefly see old data, but if writes stop, everyone <em>converges</em> on the same value soon. Fast and highly available. Use for likes, view counts, feeds, "last seen."</li>
+</ul>
+<div class="box example"><span class="tag">👍</span><b class="t">Real-world example</b>
+When you like a post, you instantly see your like, but a friend across the world might see the new count a second later. That's eventual consistency, and it's totally fine here — nobody is harmed by a like count being briefly off. But your bank uses strong consistency: your balance must be exactly right the moment a transfer completes.</div>
+<div class="box deep"><span class="tag">🔬</span><b class="t">A useful middle ground: read-your-own-writes</b>
+A common compromise guarantees you always see <em>your own</em> recent changes (so the app feels correct to you), even if others see them a moment later. It's how apps stay fast (eventual consistency globally) while never showing <em>you</em> stale versions of your own actions — e.g. your own comment appears immediately even if it propagates to others with a slight delay.</div>
+
+<h3 id="queues">Message queues — doing slow work later</h3>
+<p class="lead">A message queue is a waiting line for work. Instead of making the user wait while you do something slow, you drop a "job" into the queue and answer the user immediately; separate <strong>worker</strong> machines pull jobs from the queue and process them in the background.</p>
+
+<figure>
+<svg viewBox="0 0 740 180" role="img" aria-label="A producer puts jobs on a queue and workers consume them asynchronously">
+  <text x="370" y="16" class="s-title">Asynchronous processing with a queue</text>
+  <rect x="30" y="65" width="110" height="50" rx="9" class="s-box"/><text x="85" y="87" class="s-lbl-c">App server</text><text x="85" y="104" class="s-sub-c">(producer)</text>
+  <!-- queue -->
+  <rect x="210" y="62" width="200" height="56" rx="8" class="s-box" style="fill:#E0F2F1;stroke:#0E8074"/>
+  <rect x="222" y="74" width="30" height="32" rx="4" fill="#fff" stroke="#0E8074"/>
+  <rect x="258" y="74" width="30" height="32" rx="4" fill="#fff" stroke="#0E8074"/>
+  <rect x="294" y="74" width="30" height="32" rx="4" fill="#fff" stroke="#0E8074"/>
+  <text x="370" y="94" class="s-sub-c">Queue (jobs wait)</text>
+  <!-- workers -->
+  <rect x="480" y="35" width="110" height="40" rx="8" class="s-box"/><text x="535" y="60" class="s-lbl-c">Worker 1</text>
+  <rect x="480" y="105" width="110" height="40" rx="8" class="s-box"/><text x="535" y="130" class="s-lbl-c">Worker 2</text>
+  <line x1="140" y1="90" x2="208" y2="90" class="s-edge-b" marker-end="url(#arrowb)"/><text x="174" y="80" class="s-sub-c">push</text>
+  <line x1="410" y1="80" x2="478" y2="55" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="410" y1="100" x2="478" y2="125" class="s-edge" marker-end="url(#arrow)"/>
+  <text x="445" y="105" class="s-sub-c">pull</text>
+  <rect x="630" y="70" width="90" height="42" rx="8" class="s-green" style="fill:#E4F1EA"/><text x="675" y="96" class="s-lbl-c">Done ✓</text>
+</svg>
+<figcaption>The user gets an instant "received!" The heavy work happens later, on workers that scale independently.</figcaption>
+</figure>
+
+<div class="box analogy"><span class="tag">🍔</span><b class="t">Analogy — fast-food order screen</b>
+You order at the counter and immediately get a receipt with a number — you don't stand frozen at the till while they cook. Your order joins a queue on the kitchen screen, and cooks (workers) prepare orders in turn. The counter stays free to take the next customer. The queue <strong>decouples</strong> taking orders from making food.</div>
+
+<p>Why queues are everywhere:</p>
+<ul>
+  <li><strong>Responsiveness:</strong> return to the user instantly; do slow things (send email, encode video, generate a report) in the background.</li>
+  <li><strong>Absorbing spikes:</strong> if 10,000 jobs arrive at once but workers handle 1,000/sec, the queue holds the backlog and workers catch up — instead of the system crashing. This is "buffering."</li>
+  <li><strong>Resilience:</strong> if a worker crashes mid-job, the job goes back on the queue and another worker retries it. Work isn't lost.</li>
+  <li><strong>Independent scaling:</strong> too slow? Add more workers. The producers don't change.</li>
+</ul>
+<div class="box example"><span class="tag">🎬</span><b class="t">Real-world example</b>
+Upload a video to YouTube and it's "processing." Your upload returned in seconds, but transcoding it into ten resolutions is a heavy job sitting in a queue, chewed through by a fleet of workers. (Tools: RabbitMQ, Amazon SQS, and for high-throughput streams, Apache Kafka.)</div>
+
+<h3 id="pubsub">Publish / Subscribe — broadcasting events</h3>
+<p>A queue usually delivers each job to <em>one</em> worker. <strong>Pub/Sub</strong> is the broadcast cousin: a <em>publisher</em> emits an "event," and <em>every</em> interested <em>subscriber</em> gets a copy. The publisher doesn't know or care who's listening.</p>
+
+<figure>
+<svg viewBox="0 0 700 175" role="img" aria-label="One publisher emits an event that is delivered to multiple independent subscribers">
+  <text x="350" y="16" class="s-title">Publish / Subscribe — one event, many listeners</text>
+  <rect x="30" y="62" width="120" height="50" rx="9" class="s-box"/><text x="90" y="84" class="s-lbl-c">Order placed</text><text x="90" y="101" class="s-sub-c">(publisher)</text>
+  <rect x="230" y="60" width="120" height="54" rx="9" class="s-purple"/><text x="290" y="83" class="s-lbl-c">Event bus</text><text x="290" y="100" class="s-sub-c">topic: "orders"</text>
+  <rect x="450" y="20" width="220" height="36" rx="8" class="s-box"/><text x="560" y="43" class="s-lbl-c">📧 Email service</text>
+  <rect x="450" y="68" width="220" height="36" rx="8" class="s-box"/><text x="560" y="91" class="s-lbl-c">📦 Inventory service</text>
+  <rect x="450" y="116" width="220" height="36" rx="8" class="s-box"/><text x="560" y="139" class="s-lbl-c">📊 Analytics service</text>
+  <line x1="150" y1="87" x2="228" y2="87" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="350" y1="82" x2="448" y2="38" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="350" y1="87" x2="448" y2="86" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="350" y1="92" x2="448" y2="134" class="s-edge" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>One "order placed" event fans out to email, inventory, and analytics — each reacting independently. Adding a new listener requires no change to the publisher.</figcaption>
+</figure>
+
+<div class="box analogy"><span class="tag">📰</span><b class="t">Analogy</b>
+Pub/Sub is a newspaper subscription. The publisher prints one edition; every subscriber gets their own copy delivered. New subscribers can join anytime, and the publisher never needs to know their names. This is the heart of <a href="#event-driven" class="inline">event-driven architecture</a>.</div>
+
+<h3 id="idempotency">Idempotency — making retries safe</h3>
+<p>Networks are unreliable, so clients and queues <strong>retry</strong>. But what if a request to "charge $50" succeeds, the confirmation gets lost, and the client retries? You must not charge $50 twice. An operation is <strong>idempotent</strong> if doing it multiple times has the same effect as doing it once.</p>
+<div class="box analogy"><span class="tag">🛗</span><b class="t">Analogy</b>
+Pressing an elevator button is idempotent — pressing it five times doesn't summon five elevators. "Set floor to 3" is idempotent; "go up one floor" is not (do it twice and you're on a different floor). Design important actions like the first kind.</div>
+<p><strong>How:</strong> the client sends a unique <strong>idempotency key</strong> with the request. The server records that key with the result. If the same key arrives again, the server returns the saved result instead of re-doing the work. Payment systems, order creation, and any "retryable" action rely on this.</p>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">Remember this</b>
+In distributed systems, assume <strong>everything will be retried</strong>. Idempotency is how you stop "at-least-once delivery" from turning into "charged-you-twice."</div>
+
+<h3 id="apis">API design — the contract between client and server</h3>
+<p>An <strong>API</strong> (Application Programming Interface) is the agreed set of requests a client can make and what it gets back. It's a <em>contract</em>: if you keep it stable, others can build on you safely. Three common styles:</p>
+<table class="tbl">
+  <tr><th>Style</th><th>What it is</th><th>Best for</th></tr>
+  <tr><td><strong>REST</strong></td><td>Simple requests over HTTP around "resources" (<code>GET /users/42</code>). Uses standard verbs (GET, POST, PUT, DELETE).</td><td>The default for most public web/mobile APIs. Simple, cacheable, universally understood.</td></tr>
+  <tr><td><strong>GraphQL</strong></td><td>The client asks for <em>exactly</em> the fields it needs in one query, no more, no less.</td><td>Apps with many screens needing different data shapes; avoids over-fetching and many round trips.</td></tr>
+  <tr><td><strong>gRPC</strong></td><td>A fast, compact binary protocol, great for servers talking to each other.</td><td>Internal service-to-service calls where speed matters more than human-readability.</td></tr>
+</table>
+<div class="box deep"><span class="tag">🔬</span><b class="t">The golden rule of APIs: never break the contract</b>
+Adding a new optional field is safe (old clients ignore it). Removing or renaming a field is a <strong>breaking change</strong> that can crash every app using you. The fix is <strong>versioning</strong> (<code>/v1/</code>, <code>/v2/</code>): run old and new side by side, announce deprecation, and watch who's still on the old version before removing it.</div>
+
+<h3 id="rate-limiting">Rate limiting — protecting yourself from too much traffic</h3>
+<p>Rate limiting caps how many requests a client can make in a time window (e.g. "100 requests per minute"). Beyond that, requests are rejected (HTTP <code>429 Too Many Requests</code>). It protects you from abuse, runaway scripts, and one noisy user starving everyone else.</p>
+<div class="box analogy"><span class="tag">🎢</span><b class="t">Analogy</b>
+It's the "you can ride 3 times per hour" rule at a theme park — it stops one person from hogging the ride so everyone gets a turn, and stops the line from collapsing.</div>
+<p>A popular technique is the <strong>token bucket</strong>: you get a bucket of tokens that refills at a steady rate; each request spends one token; when the bucket's empty, you're throttled until it refills. It allows short bursts while capping the long-run rate.</p>
+
+<h3 id="proxies">Proxies — middlemen with a purpose</h3>
+<p>A proxy is a server that sits between two parties and relays traffic, often adding useful behavior. Two flavors:</p>
+<ul>
+  <li><strong>Forward proxy</strong> — sits in front of <em>clients</em>, making requests on their behalf (e.g. a corporate proxy that filters or hides employee traffic).</li>
+  <li><strong>Reverse proxy</strong> — sits in front of <em>servers</em>, receiving all incoming requests and forwarding them in. This is the important one for system design.</li>
+</ul>
+<p>A <strong>reverse proxy</strong> (like Nginx) is a Swiss-army knife placed at your front door. It can load-balance, terminate encryption (HTTPS), cache responses, compress data, block bad traffic, and hide your internal servers — all before a request ever reaches your application. In practice the load balancer, CDN edge, and API gateway are all reverse proxies wearing different hats.</p>
+
+<h3 id="microservices">Monolith vs Microservices — one big app or many small ones</h3>
+<p class="lead">This is the big architectural choice about how to <em>organize your code and teams</em>, and it's one of the most over-hyped (and over-applied) decisions in the field.</p>
+
+<figure>
+<svg viewBox="0 0 760 230" role="img" aria-label="A monolith is one deployable unit; microservices split features into independent services each with its own database">
+  <text x="190" y="18" class="s-title">Monolith — one unit</text>
+  <text x="560" y="18" class="s-title">Microservices — many units</text>
+  <line x1="380" y1="30" x2="380" y2="220" stroke="var(--border)" stroke-dasharray="4 4"/>
+  <!-- monolith -->
+  <rect x="80" y="45" width="220" height="150" rx="10" class="s-box"/>
+  <text x="190" y="66" class="s-sub-c">Single application</text>
+  <rect x="100" y="78" width="180" height="26" rx="5" class="s-white"/><text x="190" y="96" class="s-sub-c">Users</text>
+  <rect x="100" y="110" width="180" height="26" rx="5" class="s-white"/><text x="190" y="128" class="s-sub-c">Orders</text>
+  <rect x="100" y="142" width="180" height="26" rx="5" class="s-white"/><text x="190" y="160" class="s-sub-c">Payments</text>
+  <g><ellipse cx="190" cy="178" rx="40" ry="9" class="s-green"/><text x="190" y="192" class="s-sub-c">one DB</text></g>
+  <!-- microservices -->
+  <rect x="430" y="45" width="100" height="58" rx="9" class="s-box"/><text x="480" y="70" class="s-lbl-c">Users</text>
+  <g><ellipse cx="480" cy="92" rx="26" ry="7" class="s-green"/><text x="480" y="100" class="s-sub-c" style="font-size:9px">db</text></g>
+  <rect x="560" y="45" width="100" height="58" rx="9" class="s-box"/><text x="610" y="70" class="s-lbl-c">Orders</text>
+  <g><ellipse cx="610" cy="92" rx="26" ry="7" class="s-green"/><text x="610" y="100" class="s-sub-c" style="font-size:9px">db</text></g>
+  <rect x="495" y="135" width="100" height="58" rx="9" class="s-box"/><text x="545" y="160" class="s-lbl-c">Payments</text>
+  <g><ellipse cx="545" cy="182" rx="26" ry="7" class="s-green"/><text x="545" y="190" class="s-sub-c" style="font-size:9px">db</text></g>
+  <line x1="530" y1="74" x2="558" y2="74" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="610" y1="103" x2="560" y2="135" class="s-edge" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>A monolith keeps all features in one codebase and database. Microservices split them into independent services, each owning its own data and deployable on its own.</figcaption>
+</figure>
+
+<h4>Monolith — everything in one application</h4>
+<p>All features live in one codebase, deployed as one unit, sharing one database.</p>
+<p><strong>Pros:</strong> simple to build, test, and deploy; easy to reason about; fast to start. <strong>Cons:</strong> as it grows huge, it gets hard to change safely, one bug can take down everything, you must scale the whole thing even if only one feature is hot, and a big team steps on each other's toes.</p>
+
+<h4>Microservices — many small, independent services</h4>
+<p>Each capability (users, orders, payments) is its own small service with its own database, deployed independently, talking over the network (APIs, queues, events).</p>
+<p><strong>Pros:</strong> teams work and deploy independently; scale only the hot service; a failure can be contained to one service; you can use the best tool per service. <strong>Cons:</strong> you've turned function calls into <em>network</em> calls — now you must handle latency, partial failures, distributed transactions, and a web of services that's hard to test and debug. Operational complexity explodes.</p>
+
+<div class="box warning"><span class="tag">⚠️</span><b class="t">The most common mistake in the industry</b>
+Teams adopt microservices because it sounds modern, and drown in the complexity before they have the scale or team size to justify it. <strong>The wise default is to start with a (well-structured) monolith</strong> and split off a microservice only when there's a real, concrete reason: a part needs independent scaling, a separate team needs to own it, or it must deploy on a different cadence. Splitting too early gives you all the pain of distribution with none of the benefit — the dreaded "distributed monolith."</div>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">Remember this</b>
+Monolith vs microservices is a trade-off between <strong>simplicity</strong> and <strong>independence</strong>. Choose based on your real team size, scale, and rate of change — not on what's trendy. Many wildly successful products run on monoliths.</div>
+
+<h2 id="part3"><span class="section-num">Part 3</span>Advanced &amp; Distributed Systems</h2>
+<p class="lead">These are the deeper topics that make large distributed systems actually work — and the ones senior interviews probe. We keep the same plain-language approach.</p>
+
+<h3 id="consistent-hashing">Consistent hashing — adding/removing servers without chaos</h3>
+<p>Recall the sharding problem: how do you decide which server holds which piece of data? The naive answer is <code>server = hash(key) % N</code>, where N is the number of servers. It works — until N changes. Add or remove one server and <strong>almost every key</strong> suddenly maps to a different server, forcing a massive, system-crippling reshuffle of data.</p>
+<p><strong>Consistent hashing</strong> fixes this. Imagine a clock face (a "ring") numbered all the way around. You place both your servers <em>and</em> your data keys onto this ring using a hash. Each key is stored on the first server you meet going clockwise from the key's position.</p>
+
+<figure>
+<svg viewBox="0 0 700 270" role="img" aria-label="Consistent hashing places servers and keys on a ring; adding a server only moves keys in one segment">
+  <text x="350" y="18" class="s-title">The hash ring</text>
+  <circle cx="350" cy="145" r="100" fill="none" stroke="var(--border)" stroke-width="2"/>
+  <!-- servers -->
+  <circle cx="350" cy="45" r="13" class="s-box"/><text x="350" y="32" class="s-sub-c">Srv A</text>
+  <circle cx="437" cy="195" r="13" class="s-box"/><text x="470" y="200" class="s-sub-c">Srv B</text>
+  <circle cx="263" cy="195" r="13" class="s-box"/><text x="225" y="200" class="s-sub-c">Srv C</text>
+  <!-- keys -->
+  <circle cx="430" cy="95" r="7" class="s-amber"/><text x="455" y="92" class="s-sub-c">key1</text>
+  <circle cx="350" cy="245" r="7" class="s-amber"/><text x="350" y="265" class="s-sub-c">key2</text>
+  <circle cx="270" cy="95" r="7" class="s-amber"/><text x="240" y="92" class="s-sub-c">key3</text>
+  <!-- new server -->
+  <circle cx="410" cy="55" r="13" class="s-green"/><text x="430" y="45" class="s-sub-c">+New</text>
+  <path d="M 415 70 A 35 35 0 0 1 430 88" fill="none" stroke="var(--green)" stroke-width="1.6" marker-end="url(#arrow)"/>
+  <text x="350" y="150" class="s-sub-c">key → next server clockwise</text>
+</svg>
+<figcaption>Each key is owned by the next server clockwise. Adding "New" only steals the keys between it and the previous server (just key1) — everyone else is untouched.</figcaption>
+</figure>
+
+<div class="box analogy"><span class="tag">🕐</span><b class="t">Why it's brilliant</b>
+When you add a new server onto the ring, it only takes over the keys in the <em>one arc</em> between it and the previous server. Every other key stays exactly where it was. So adding/removing a node moves only a <strong>small fraction</strong> of the data (about 1/N), not all of it. (Real systems also add "virtual nodes" — placing each server at many points on the ring — to spread load evenly.)</div>
+<div class="box example"><span class="tag">🗄️</span><b class="t">Real-world example</b>
+This is how distributed caches and databases like <strong>Cassandra</strong> and <strong>DynamoDB</strong> decide data placement and scale smoothly. It's the unsung hero that lets them add capacity without downtime.</div>
+
+<h3 id="consensus">Consensus &amp; Raft — getting machines to agree</h3>
+<p>In a distributed system, how do multiple machines agree on a single value — like "who is the leader?" or "what's the next entry in the log?" — even when messages are delayed and machines crash? This is the <strong>consensus</strong> problem, and it's genuinely hard. <strong>Raft</strong> is a popular algorithm designed to be understandable.</p>
+<p>The core ideas of Raft, simplified:</p>
+<ul>
+  <li>Nodes are <strong>Leader</strong>, <strong>Follower</strong>, or <strong>Candidate</strong>. At any time there's one leader.</li>
+  <li>The <strong>leader</strong> receives all changes, writes them to its log, and copies them to followers.</li>
+  <li>A change is "committed" only once a <strong>majority</strong> of nodes have stored it — so a minority crashing can't lose agreed data.</li>
+  <li>Leaders send regular <strong>heartbeats</strong>. If followers stop hearing them, one becomes a candidate and starts an <strong>election</strong> (next section).</li>
+</ul>
+<div class="box analogy"><span class="tag">🗳️</span><b class="t">Analogy — a committee with a chairperson</b>
+A committee (the nodes) follows one chairperson (the leader). The chair proposes decisions; a motion passes only when <strong>most</strong> members agree and record it. If the chair goes silent, the members hold a quick vote to elect a new chair. Because every decision needs a majority, the group never ends up with two contradictory "official" records.</div>
+<div class="box example"><span class="tag">⚙️</span><b class="t">Real-world example</b>
+Coordination systems like <strong>etcd</strong> (the brain of Kubernetes) and <strong>ZooKeeper</strong> use consensus to reliably store critical configuration that every machine must agree on. When you hear "the cluster needs a quorum," this is why.</div>
+
+<h3 id="leader-election">Leader election — choosing who's in charge</h3>
+<p>Many systems need exactly one node to be "the leader" (the one allowed to make decisions or accept writes). But the leader can crash, so the system must automatically pick a new one — without ever accidentally choosing <em>two</em> leaders (a "split brain," which causes conflicting decisions and data corruption).</p>
+<p>Leader election (handled by algorithms like Raft) typically works by: detecting the leader is gone (missed heartbeats), having candidates request votes, and electing whoever gets a <strong>majority</strong>. The majority rule is the key safety trick — since two different nodes can't both win a majority of the same group, you can't end up with two leaders.</p>
+<div class="box warning"><span class="tag">⚠️</span><b class="t">The split-brain danger</b>
+If a network partition makes each half <em>think</em> the other is dead, both halves might elect their own leader and accept conflicting writes. Requiring a majority (quorum) prevents this: the minority side can't form a majority, so it steps down and refuses writes. This is also CAP in action — the minority chooses consistency (refusing) over availability.</div>
+
+<h3 id="distributed-tx">Distributed transactions: Two-Phase Commit &amp; the Saga pattern</h3>
+<p>In a single SQL database, a transaction is easy — it's all-or-nothing automatically. But what if one operation spans <em>multiple services/databases</em> (reserve inventory <em>and</em> charge payment <em>and</em> create the order)? You need all of them to succeed or all to undo. Two approaches:</p>
+
+<figure>
+<svg viewBox="0 0 760 230" role="img" aria-label="Two-phase commit uses a coordinator to prepare then commit; a saga runs local steps with compensating undo actions">
+  <text x="190" y="16" class="s-title">2PC — vote, then commit</text>
+  <text x="565" y="16" class="s-title">Saga — step, undo if needed</text>
+  <line x1="380" y1="28" x2="380" y2="220" stroke="var(--border)" stroke-dasharray="4 4"/>
+  <!-- 2PC -->
+  <rect x="120" y="40" width="140" height="36" rx="8" class="s-purple"/><text x="190" y="63" class="s-lbl-c">Coordinator</text>
+  <rect x="50" y="120" width="90" height="34" rx="7" class="s-box"/><text x="95" y="142" class="s-sub-c">Service A</text>
+  <rect x="155" y="120" width="90" height="34" rx="7" class="s-box"/><text x="200" y="142" class="s-sub-c">Service B</text>
+  <rect x="255" y="120" width="90" height="34" rx="7" class="s-box"/><text x="300" y="142" class="s-sub-c">Service C</text>
+  <line x1="170" y1="76" x2="100" y2="118" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="190" y1="76" x2="200" y2="118" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="210" y1="76" x2="295" y2="118" class="s-edge" marker-end="url(#arrow)"/>
+  <text x="190" y="178" class="s-sub-c">Phase 1: "ready?" → all vote yes</text>
+  <text x="190" y="196" class="s-sub-c">Phase 2: "commit!" (or "abort!")</text>
+  <!-- saga -->
+  <rect x="430" y="50" width="90" height="34" rx="7" class="s-box"/><text x="475" y="72" class="s-sub-c">1. Order</text>
+  <rect x="540" y="50" width="90" height="34" rx="7" class="s-box"/><text x="585" y="72" class="s-sub-c">2. Payment</text>
+  <rect x="650" y="50" width="90" height="34" rx="7" class="s-red"/><text x="695" y="72" class="s-sub-c">3. Ship ✗</text>
+  <line x1="520" y1="67" x2="538" y2="67" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="630" y1="67" x2="648" y2="67" class="s-edge" marker-end="url(#arrow)"/>
+  <path d="M 650 100 L 540 100" class="s-edge" stroke="var(--red)" marker-end="url(#arrow)"/>
+  <path d="M 540 110 L 430 110" class="s-edge" stroke="var(--red)" marker-end="url(#arrow)"/>
+  <text x="585" y="135" class="s-sub-c" style="fill:var(--red)">step 3 fails → undo 2, then 1</text>
+  <text x="585" y="153" class="s-sub-c">(refund, cancel order)</text>
+</svg>
+<figcaption>2PC locks everyone and commits together (strong, but fragile). A Saga runs steps one by one and fires "compensating" undo actions if a later step fails.</figcaption>
+</figure>
+
+<h4>Two-Phase Commit (2PC)</h4>
+<p>A coordinator asks every participant "are you ready to commit?" (phase 1). Only if <em>all</em> say yes does it tell them "commit!" (phase 2); otherwise "abort." It gives strong consistency, but it's <strong>slow and fragile</strong>: everyone holds locks and waits, and if the coordinator crashes at the wrong moment, participants can be stuck locked. Rarely used at large scale for this reason.</p>
+
+<h4>The Saga pattern (the modern favorite for microservices)</h4>
+<p>Instead of one big locked transaction, a Saga is a <em>sequence</em> of local transactions. Each step does its work and publishes an event triggering the next. If a step fails, the Saga runs <strong>compensating transactions</strong> — explicit "undo" actions — to reverse the earlier steps.</p>
+<div class="box analogy"><span class="tag">✈️</span><b class="t">Analogy — booking a trip</b>
+You book a flight, then a hotel, then a car. If the car booking fails, you don't have a magic "undo everything" button — you <em>cancel the hotel</em> and <em>cancel the flight</em> as explicit reversing steps. A Saga embraces that there's no global undo, so you design the undo for each step. It accepts brief inconsistency (eventual consistency) in exchange for not locking everything.</div>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">Remember this</b>
+Across services you usually can't have neat ACID transactions, so you trade them for <strong>eventual consistency plus compensating actions</strong> (Saga). Designing the "undo" path is part of the job — this connects straight back to the CAP theorem.</div>
+
+<h3 id="quorum">Quorum — tunable consistency with a simple formula</h3>
+<p>In a replicated NoSQL store with N copies of each piece of data, you can dial consistency vs availability with two numbers: <strong>W</strong> (how many copies must confirm a <em>write</em>) and <strong>R</strong> (how many copies you read from and compare). The magic rule:</p>
+<p style="text-align:center;font-size:20px;font-weight:700;color:var(--blue-deep);">If&nbsp; W + R &gt; N &nbsp;→&nbsp; a read is guaranteed to see the latest write.</p>
+<p>Why? If writes touch W copies and reads touch R copies, and W + R is bigger than the total N, then the read set and the write set must <strong>overlap</strong> in at least one node — so at least one node you read from has the newest value.</p>
+<ul>
+  <li>Want <strong>strong consistency</strong>? Make W + R &gt; N (e.g. N=3, W=2, R=2). Slower, but reads are always fresh.</li>
+  <li>Want <strong>maximum speed/availability</strong>? Use small W and R (e.g. W=1, R=1). Fast, but you might read stale data.</li>
+</ul>
+<div class="box example"><span class="tag">🎛️</span><b class="t">Real-world example</b>
+Databases like Cassandra and DynamoDB let you choose W and R <em>per request</em>. A "post a comment" write might use a low W for speed; a "show account balance" read might demand a high R for correctness. Same database, different guarantees per operation — that's "tunable consistency."</div>
+
+
+<h3 id="event-driven">Event-driven architecture, Event Sourcing &amp; CQRS</h3>
+<p><strong>Event-driven architecture</strong> means services communicate by emitting and reacting to <em>events</em> ("OrderPlaced", "PaymentReceived") via pub/sub, rather than calling each other directly. This decouples them: the order service just announces what happened; whoever cares reacts. It's flexible and resilient, but harder to trace end-to-end.</p>
+<p>Two advanced patterns build on this:</p>
+<h4>Event Sourcing</h4>
+<p>Instead of storing just the <em>current state</em> ("balance = $50"), you store the full <strong>sequence of events</strong> that produced it ("+$100 deposit, −$50 withdrawal"). Current state is computed by replaying events.</p>
+<div class="box analogy"><span class="tag">🧾</span><b class="t">Analogy — a bank ledger</b>
+A bank doesn't just store your balance; it stores every transaction ever. The balance is derived by summing them. This gives a perfect audit trail, the ability to reconstruct state at any past moment, and a natural fit for event-driven systems. The cost is more storage and complexity.</div>
+<h4>CQRS (Command Query Responsibility Segregation)</h4>
+<p>A fancy name for a simple idea: use <strong>separate models for writing and reading</strong>. Writes ("commands") go to one model optimized for correctness; reads ("queries") are served from a different model/store optimized for fast lookups, kept up to date from the write side.</p>
+
+<figure>
+<svg viewBox="0 0 720 195" role="img" aria-label="CQRS separates the write path and the read path into different optimized stores">
+  <text x="360" y="16" class="s-title">CQRS — split read and write paths</text>
+  <rect x="40" y="80" width="90" height="44" rx="8" class="s-gray"/><text x="85" y="107" class="s-lbl-c">Client</text>
+  <!-- write -->
+  <rect x="200" y="35" width="120" height="40" rx="8" class="s-box"/><text x="260" y="60" class="s-lbl-c">Write model</text>
+  <g><ellipse cx="430" cy="35" rx="42" ry="10" class="s-green"/><rect x="388" y="35" width="84" height="32" fill="var(--green-light)"/><line x1="388" y1="35" x2="388" y2="67" class="s-green"/><line x1="472" y1="35" x2="472" y2="67" class="s-green"/><ellipse cx="430" cy="67" rx="42" ry="10" class="s-green"/><ellipse cx="430" cy="35" rx="42" ry="10" class="s-green"/><text x="430" y="56" class="s-sub-c">Write DB</text></g>
+  <!-- read -->
+  <rect x="200" y="130" width="120" height="40" rx="8" class="s-amber"/><text x="260" y="155" class="s-lbl-c">Read model</text>
+  <g><ellipse cx="430" cy="130" rx="42" ry="10" class="s-amber"/><rect x="388" y="130" width="84" height="32" fill="var(--amber-light)"/><line x1="388" y1="130" x2="388" y2="162" class="s-amber"/><line x1="472" y1="130" x2="472" y2="162" class="s-amber"/><ellipse cx="430" cy="162" rx="42" ry="10" class="s-amber"/><ellipse cx="430" cy="130" rx="42" ry="10" class="s-amber"/><text x="430" y="151" class="s-sub-c">Read DB (fast)</text></g>
+  <line x1="130" y1="95" x2="198" y2="60" class="s-edge-b" marker-end="url(#arrowb)"/><text x="150" y="70" class="s-sub-c">write</text>
+  <line x1="130" y1="105" x2="198" y2="150" class="s-edge" marker-end="url(#arrow)"/><text x="150" y="140" class="s-sub-c">read</text>
+  <line x1="320" y1="55" x2="386" y2="50" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="320" y1="150" x2="386" y2="146" class="s-edge" marker-end="url(#arrow)"/>
+  <path d="M 540 50 C 590 80 590 110 540 145" class="s-dash" marker-end="url(#arrow)"/>
+  <text x="595" y="100" class="s-sub-c">sync</text>
+</svg>
+<figcaption>Writes and reads use different stores tuned for their job, synced behind the scenes — powerful for read-heavy systems, at the cost of eventual consistency between them.</figcaption>
+</figure>
+<p><strong>When useful:</strong> systems with wildly different read and write patterns (read-heavy apps), where you want to optimize each independently. <strong>Cost:</strong> more complexity and eventual consistency between the two sides. Don't reach for it unless the asymmetry is real.</p>
+
+<h3 id="bloom">Bloom filters — a tiny "definitely not / maybe yes" check</h3>
+<p>A Bloom filter is a clever, ultra-compact structure that answers one question fast: "is this item <em>possibly</em> in the set, or <em>definitely not</em>?" It can produce false positives ("maybe" when the answer is no) but <strong>never false negatives</strong> — if it says "definitely not," it's certainly not there.</p>
+<div class="box analogy"><span class="tag">🛂</span><b class="t">Analogy</b>
+Think of a bouncer with an imperfect memory who's <em>certain</em> about who's <strong>not</strong> on the guest list, but occasionally unsure about who is. If they say "you're definitely not on the list," you can leave immediately (skip the slow full check). If they say "maybe," you do the full lookup. Most of the time you avoid the slow check entirely.</div>
+<div class="box example"><span class="tag">🗄️</span><b class="t">Real-world example</b>
+Databases like Cassandra use Bloom filters to avoid hitting disk: before doing a slow disk read to find a row, the filter says "definitely not in this file" for most files, so the DB only reads the one file that <em>might</em> have it. Huge savings on read-heavy workloads with almost no memory.</div>
+
+<h3 id="resilience">Resilience patterns — circuit breakers &amp; bulkheads</h3>
+<p>In a system of many services, one slow or failing service can drag down everyone calling it — requests pile up waiting, threads get exhausted, and the failure <strong>cascades</strong> across the whole system. Two patterns prevent this.</p>
+<h4>Circuit breaker</h4>
+<p>Borrowed from electrical engineering: if calls to a service keep failing, the "breaker" <strong>trips open</strong> and immediately rejects further calls (failing fast) instead of waiting and piling up. After a cooldown it lets a trickle through to test if the service recovered, then closes again.</p>
+
+<figure>
+<svg viewBox="0 0 700 130" role="img" aria-label="Circuit breaker states: closed allows calls, open blocks them after failures, half-open tests recovery">
+  <rect x="40" y="45" width="150" height="50" rx="10" class="s-green"/><text x="115" y="68" class="s-lbl-c">CLOSED</text><text x="115" y="85" class="s-sub-c">calls flow normally</text>
+  <rect x="275" y="45" width="150" height="50" rx="10" class="s-red"/><text x="350" y="68" class="s-lbl-c">OPEN</text><text x="350" y="85" class="s-sub-c">fail fast, block calls</text>
+  <rect x="510" y="45" width="150" height="50" rx="10" class="s-amber"/><text x="585" y="68" class="s-lbl-c">HALF-OPEN</text><text x="585" y="85" class="s-sub-c">test a few calls</text>
+  <line x1="190" y1="60" x2="273" y2="60" class="s-edge" marker-end="url(#arrow)"/><text x="232" y="50" class="s-sub-c">too many fails</text>
+  <line x1="425" y1="70" x2="508" y2="70" class="s-edge" marker-end="url(#arrow)"/><text x="467" y="115" class="s-sub-c">after cooldown</text>
+  <path d="M 560 95 C 480 130 200 130 130 97" class="s-edge" marker-end="url(#arrow)"/><text x="350" y="128" class="s-sub-c">recovered → close</text>
+</svg>
+<figcaption>The breaker stops a failing dependency from taking down its callers, and automatically probes for recovery.</figcaption>
+</figure>
+
+<h4>Bulkhead</h4>
+<p>Named after a ship's watertight compartments: you <strong>isolate resources</strong> so a failure in one area can't sink the whole ship. For example, give each downstream dependency its own limited pool of connections/threads, so one misbehaving dependency can't consume <em>all</em> resources and starve the rest.</p>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">Remember this</b>
+Resilience is about <strong>containing failure</strong>, not preventing it. Circuit breakers stop cascades; bulkheads stop one fire from spreading; timeouts and retries (with backoff) round out the toolkit. Assume dependencies will fail and design so they fail <em>quietly and locally</em>.</div>
+
+<h3 id="observability">Observability — seeing inside a running system</h3>
+<p>When something breaks in production (and it will), you need to understand <em>why</em> — fast. Observability is your ability to ask questions about a live system from the signals it emits. It rests on <strong>three pillars</strong>:</p>
+
+<figure>
+<svg viewBox="0 0 720 120" role="img" aria-label="The three pillars of observability: logs, metrics, and traces">
+  <rect x="30" y="35" width="200" height="60" rx="10" class="s-box"/><text x="130" y="60" class="s-lbl-c">📜 Logs</text><text x="130" y="79" class="s-sub-c">what happened, in detail</text>
+  <rect x="260" y="35" width="200" height="60" rx="10" class="s-amber"/><text x="360" y="60" class="s-lbl-c">📊 Metrics</text><text x="360" y="79" class="s-sub-c">numbers over time</text>
+  <rect x="490" y="35" width="200" height="60" rx="10" class="s-purple"/><text x="590" y="60" class="s-lbl-c">🔗 Traces</text><text x="590" y="79" class="s-sub-c">one request across services</text>
+</svg>
+<figcaption>Logs tell you the story, metrics tell you the trends, traces follow one request through every service it touched.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>Logs</strong> — detailed records of events ("user 42 failed login at 10:05"). Great for the specifics of what happened.</li>
+  <li><strong>Metrics</strong> — numbers measured over time (requests/sec, error rate, p99 latency, CPU). Great for dashboards and alerts: <em>is</em> something wrong?</li>
+  <li><strong>Traces</strong> — the path of a single request as it hops across many services, with timing at each hop. Essential in microservices to find <em>where</em> the slowness or error is.</li>
+</ul>
+<div class="box deep"><span class="tag">🔬</span><b class="t">Monitoring vs observability</b>
+<strong>Monitoring</strong> watches things you already know to check ("alert if error rate &gt; 1%"). <strong>Observability</strong> lets you investigate problems you <em>didn't</em> predict ("why are users in one region seeing slow checkouts?") by slicing your data in new ways. In big distributed systems, most serious incidents are surprises — so good observability is what turns a multi-hour outage into a ten-minute fix.</div>
+<div class="box example"><span class="tag">🚨</span><b class="t">Real-world example</b>
+A good on-call setup: a <strong>metric</strong> alert fires ("checkout errors spiking"), you open a <strong>dashboard</strong> to see it's only one region, a <strong>trace</strong> shows the payment service is timing out, and its <strong>logs</strong> reveal a database connection pool exhausted. Four tools, one fast diagnosis.</div>
+
+<h3 id="db-internals">Database internals: B-Tree vs LSM-Tree</h3>
+<p>Why are some databases great at reads and others at writes? Often it's the storage structure underneath. Two dominate:</p>
+<table class="tbl">
+  <tr><th></th><th>B-Tree</th><th>LSM-Tree</th></tr>
+  <tr><td><strong>Used by</strong></td><td>Most SQL DBs (PostgreSQL, MySQL)</td><td>Many NoSQL DBs (Cassandra, RocksDB)</td></tr>
+  <tr><td><strong>How writes work</strong></td><td>Update data in place on disk</td><td>Append to memory, flush sorted files later</td></tr>
+  <tr><td><strong>Strength</strong></td><td>Fast, predictable <strong>reads</strong></td><td>Very fast <strong>writes</strong> (append-only)</td></tr>
+  <tr><td><strong>Weakness</strong></td><td>Writes do more random disk work</td><td>Reads may check several files; needs background compaction</td></tr>
+</table>
+<div class="box analogy"><span class="tag">📝</span><b class="t">Analogy</b>
+A <strong>B-Tree</strong> is like keeping one perfectly alphabetized address book — looking someone up is instant, but inserting a new name means making room on the right page every time. An <strong>LSM-Tree</strong> is like jotting new contacts on a notepad and periodically merging them into the sorted book — writing is effortless, but a lookup might check both the notepad and the book (that's where Bloom filters help!).</div>
+<p>This is <em>why</em> write-heavy systems (logging, sensors, messaging) often pick LSM-based stores, while read-heavy transactional systems favor B-Trees. The structure is the trade-off.</p>
+
+<h3 id="geo">Going global — multi-region &amp; geo-distribution</h3>
+<p>Serving users worldwide from one data center means people far away suffer high latency, and if that data center fails, everyone is offline. The answer is running in <strong>multiple regions</strong> (geographic locations), so users are served from the nearest one and a region failure doesn't take you down.</p>
+<div class="box analogy"><span class="tag">🌍</span><b class="t">Analogy</b>
+Instead of one mega-store everyone must travel to, you open branches in every continent. Locals shop nearby (low latency), and if one branch burns down, the others keep trading (disaster recovery).</div>
+<p>This is powerful but reignites our hardest problem: <strong>keeping data consistent across regions</strong> separated by 100+ milliseconds. You face the CAP trade-off at planetary scale. Common patterns:</p>
+<ul>
+  <li><strong>Read replicas in each region</strong> with writes funneled to one "home" region (simple, but cross-region writes are slow).</li>
+  <li><strong>Active-active</strong> — every region accepts writes and they're reconciled (highly available, but you must resolve conflicting writes).</li>
+  <li><strong>Geo-routing</strong> — DNS or a global load balancer sends each user to their closest healthy region.</li>
+</ul>
+<div class="box warning"><span class="tag">⚠️</span><b class="t">Watch out</b>
+Multi-region adds enormous complexity (data sync, conflict resolution, cost, testing failover). Many products serve the whole world from one or two regions plus a CDN for static content, and only go fully multi-region when latency or availability truly demands it.</div>
+
+<h3 id="data">Storing &amp; crunching huge data: warehouses, lakes &amp; streaming</h3>
+<p>The databases so far power your <em>live app</em> (called OLTP — many small, fast operations). But companies also need to <em>analyze</em> mountains of historical data ("what did sales look like across 5 years?"). That's a different job (OLAP — big analytical scans), and running it on your live database would crush it.</p>
+<ul>
+  <li><strong>Data warehouse</strong> — a database tuned for big analytical queries over <em>structured</em> data (e.g. Snowflake, BigQuery). Data is ETL'd in from your live systems.</li>
+  <li><strong>Data lake</strong> — a giant store for <em>raw</em> data of any shape (logs, images, clicks), cheap and flexible, processed later.</li>
+  <li><strong>Batch vs stream processing</strong> — <strong>batch</strong> crunches big chunks on a schedule (nightly reports); <strong>stream</strong> processing reacts to events continuously in near-real-time (live fraud detection, dashboards). Tools like Apache Kafka + Spark/Flink power these.</li>
+</ul>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">Remember this</b>
+Keep the <strong>transactional</strong> world (your fast live app) separate from the <strong>analytical</strong> world (big historical crunching). Copy data from one to the other rather than running heavy reports on the database your users depend on.</div>
+
+<h2 id="part4"><span class="section-num">Part 4</span>How to Approach a Design</h2>
+<p class="lead">Knowing the building blocks is one thing; assembling them under pressure is another. This is the repeatable method — the same one used in senior interviews and real design reviews. Whenever you face "design X," walk these steps in order.</p>
+
+<h3 id="framework">The 6-step framework</h3>
+
+<figure>
+<svg viewBox="0 0 740 120" role="img" aria-label="Six steps: requirements, estimation, API, high-level design, deep dive, bottlenecks">
+  <rect x="14" y="40" width="106" height="48" rx="9" class="s-box"/><text x="67" y="61" class="s-lbl-c">1. Clarify</text><text x="67" y="78" class="s-sub-c">requirements</text>
+  <rect x="134" y="40" width="106" height="48" rx="9" class="s-box"/><text x="187" y="61" class="s-lbl-c">2. Estimate</text><text x="187" y="78" class="s-sub-c">scale &amp; math</text>
+  <rect x="254" y="40" width="106" height="48" rx="9" class="s-box"/><text x="307" y="61" class="s-lbl-c">3. Define</text><text x="307" y="78" class="s-sub-c">the API</text>
+  <rect x="374" y="40" width="106" height="48" rx="9" class="s-box"/><text x="427" y="61" class="s-lbl-c">4. High-level</text><text x="427" y="78" class="s-sub-c">diagram</text>
+  <rect x="494" y="40" width="106" height="48" rx="9" class="s-box"/><text x="547" y="61" class="s-lbl-c">5. Deep dive</text><text x="547" y="78" class="s-sub-c">key parts</text>
+  <rect x="614" y="40" width="112" height="48" rx="9" class="s-amber"/><text x="670" y="61" class="s-lbl-c">6. Find</text><text x="670" y="78" class="s-sub-c">bottlenecks</text>
+  <line x1="120" y1="64" x2="132" y2="64" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="240" y1="64" x2="252" y2="64" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="360" y1="64" x2="372" y2="64" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="480" y1="64" x2="492" y2="64" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="600" y1="64" x2="612" y2="64" class="s-edge" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>A reliable order of operations. Resist the urge to jump straight to boxes and arrows — steps 1 and 2 shape everything.</figcaption>
+</figure>
+
+<ol>
+  <li><strong>Clarify requirements.</strong> Never start designing blind. Split into <em>functional</em> ("what must it do?" — e.g. shorten a URL, redirect it) and <em>non-functional</em> ("how well?" — how many users, read-heavy or write-heavy, how fast, how available). Ask: "How many users? Reads vs writes? Acceptable latency? Consistency or availability priority?" These answers decide your whole architecture.</li>
+  <li><strong>Estimate scale (back-of-envelope).</strong> Rough numbers: requests per second, storage per year, bandwidth. You don't need precision — you need to know if it's "thousands" or "billions," because that changes the design entirely. (Method in the next section.)</li>
+  <li><strong>Define the API.</strong> Nail down the main operations as simple request/response contracts (e.g. <code>POST /shorten</code>, <code>GET /{code}</code>). This forces clarity on exactly what the system does before you design how.</li>
+  <li><strong>Draw the high-level design.</strong> Now the boxes and arrows: client → load balancer → services → databases/caches/queues. Keep it simple first; get data flowing end to end.</li>
+  <li><strong>Deep dive into the hard parts.</strong> Pick the 1–2 genuinely tricky pieces (the database schema, the part that must scale most, the consistency-sensitive flow) and detail them. This is where you show depth.</li>
+  <li><strong>Identify bottlenecks &amp; trade-offs.</strong> Stress-test your own design: "What happens at 10× traffic? What if this database is the bottleneck? What's the single point of failure?" Then apply the right tool — caching, replication, sharding, queues — and <em>say what you're trading away</em>.</li>
+</ol>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">Remember this</b>
+The single biggest mistake is jumping to step 4. Spend real time on requirements and scale first — a design that's perfect for a thousand users can be completely wrong for a billion, and only steps 1–2 tell you which world you're in.</div>
+
+<h3 id="estimation">Back-of-the-envelope estimation</h3>
+<p>This is quick mental math to size a system. The goal is the right <em>order of magnitude</em>, not accuracy. A few reference numbers and a method:</p>
+<table class="tbl">
+  <tr><th>Handy number</th><th>Value</th></tr>
+  <tr><td>Seconds in a day</td><td>~86,400 (≈ 10⁵)</td></tr>
+  <tr><td>1 million writes/day</td><td>≈ 12 writes/second (average)</td></tr>
+  <tr><td>Read:write ratio (typical social app)</td><td>~100:1 (reads dominate)</td></tr>
+  <tr><td>1 char ≈ 1 byte; a tweet ≈ 300 bytes; a photo ≈ 1–5 MB; a movie ≈ 5 GB</td><td>—</td></tr>
+</table>
+<div class="box example"><span class="tag">🧮</span><b class="t">Worked example — sizing a URL shortener</b>
+Say <strong>100 million new URLs/day</strong>. Per second: 100M ÷ 86,400 ≈ <strong>~1,160 writes/sec</strong>. With a 100:1 read ratio, that's <strong>~116,000 reads/sec</strong> — so this is overwhelmingly a <em>read</em> system, screaming for heavy caching. Storage: 100M/day × 365 × ~10 years ≈ <strong>365 billion URLs</strong>; at ~500 bytes each that's <strong>~180 TB</strong> — far too big for one machine, so we'll need sharding. Notice how two minutes of math already told us "cache hard, shard the database" before drawing anything.</div>
+<p>The pattern: (1) convert "per day" to "per second" by dividing by ~100,000; (2) apply the read:write ratio; (3) multiply storage by time to project growth. Those three moves answer "do I need caching? replication? sharding?"</p>
+
+<h3 id="tradeoffs">The trade-offs cheat sheet</h3>
+<p>Almost every decision in this field is one of these tensions. There's no universally right answer — only the right answer <em>for your requirements</em>.</p>
+<table class="tbl">
+  <tr><th>You gain…</th><th>…by giving up</th><th>Lever</th></tr>
+  <tr><td>Speed / low latency</td><td>Freshness (risk of stale data)</td><td>Caching, replicas, CDN</td></tr>
+  <tr><td>Availability (always responds)</td><td>Strong consistency</td><td>AP systems, eventual consistency</td></tr>
+  <tr><td>Strong consistency (always correct)</td><td>Some availability / speed</td><td>CP systems, quorum, ACID</td></tr>
+  <tr><td>Massive scale</td><td>Simplicity (more moving parts)</td><td>Sharding, microservices</td></tr>
+  <tr><td>Fast reads</td><td>Slower writes + storage</td><td>Indexes, denormalization</td></tr>
+  <tr><td>Fast writes</td><td>Slower / more complex reads</td><td>LSM-trees, write-optimized stores</td></tr>
+  <tr><td>Team independence</td><td>Operational complexity</td><td>Microservices</td></tr>
+  <tr><td>Responsiveness</td><td>Immediate results (work done later)</td><td>Queues, async processing</td></tr>
+</table>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">The one sentence to take from this whole guide</b>
+Good system design isn't about knowing the "best" technology — it's about understanding your requirements deeply, then making <strong>conscious trade-offs</strong> you can explain. "It depends, and here's exactly what it depends on" is the hallmark of someone who really gets it.</div>
+
+<h2 id="part5"><span class="section-num">Part 5</span>Real-World Case Studies</h2>
+<p class="lead">Now we put it all together. Each case study shows how the building blocks combine to solve a famous, hard problem. For every one: what it must do, how big it gets, an architecture diagram, and — most importantly — the <em>one key insight</em> that makes it work. These are the classic system-design problems.</p>
+
+<h3 id="cs-url">1 · URL Shortener (TinyURL, Bitly)</h3>
+<p><strong>The challenge:</strong> turn a long URL into a tiny one (e.g. <code>bit.ly/3xY7z</code>), and when someone visits the short link, instantly redirect them to the original.</p>
+<p><strong>Requirements.</strong> Functional: create a short code for a URL; redirect a short code to its long URL. Non-functional: <em>extremely</em> read-heavy, redirects must be very fast (&lt;50ms), highly available, codes must be short and unique.</p>
+<p><strong>Scale (from our earlier math):</strong> ~1,000 writes/sec, ~100,000 reads/sec, ~180 TB over a decade. Verdict: <strong>cache aggressively, shard the storage.</strong></p>
+
+<figure>
+<svg viewBox="0 0 720 220" role="img" aria-label="URL shortener architecture with write path through an ID generator and read path through a cache">
+  <text x="360" y="16" class="s-title">URL shortener — separate the rare write from the hot read</text>
+  <rect x="30" y="40" width="84" height="40" rx="8" class="s-gray"/><text x="72" y="65" class="s-lbl-c">Client</text>
+  <rect x="160" y="40" width="96" height="40" rx="8" class="s-purple"/><text x="208" y="65" class="s-lbl-c">Load bal.</text>
+  <rect x="300" y="40" width="110" height="40" rx="8" class="s-box"/><text x="355" y="65" class="s-lbl-c">Write API</text>
+  <rect x="300" y="100" width="110" height="40" rx="8" class="s-box"/><text x="355" y="125" class="s-lbl-c">Read API</text>
+  <rect x="460" y="35" width="110" height="44" rx="8" class="s-amber" style="fill:#FBF1E1;stroke:#B26A1F"/><text x="515" y="53" class="s-lbl-c">ID generator</text><text x="515" y="70" class="s-sub-c">unique counter</text>
+  <rect x="460" y="100" width="110" height="40" rx="8" class="s-amber"/><text x="515" y="125" class="s-lbl-c">Cache (Redis)</text>
+  <g><ellipse cx="640" cy="150" rx="48" ry="12" class="s-green"/><rect x="592" y="150" width="96" height="46" fill="var(--green-light)"/><line x1="592" y1="150" x2="592" y2="196" class="s-green"/><line x1="688" y1="150" x2="688" y2="196" class="s-green"/><ellipse cx="640" cy="196" rx="48" ry="12" class="s-green"/><ellipse cx="640" cy="150" rx="48" ry="12" class="s-green"/><text x="640" y="178" class="s-lbl-c">Sharded DB</text></g>
+  <line x1="114" y1="60" x2="158" y2="60" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="256" y1="58" x2="298" y2="58" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="256" y1="64" x2="298" y2="118" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="410" y1="58" x2="458" y2="57" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="410" y1="120" x2="458" y2="120" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="570" y1="125" x2="592" y2="150" class="s-dash" marker-end="url(#arrow)"/>
+  <text x="540" y="168" class="s-sub-c">miss → DB</text>
+  <line x1="515" y1="79" x2="600" y2="148" class="s-edge" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>Writes get a unique code from an ID generator and store it. Reads hit the cache first — and since a few links are clicked constantly, the cache absorbs almost all the 100k reads/sec.</figcaption>
+</figure>
+
+<p><strong>The key insight — generating short codes.</strong> The clean approach is a unique counter (1, 2, 3, …) converted to <strong>base62</strong> (using a–z, A–Z, 0–9). Base62 packs huge numbers into few characters: 62⁷ ≈ 3.5 trillion codes in just 7 characters. A distributed ID generator hands out unique counter ranges to each server so no two servers ever collide. (The alternative — hashing the URL — risks two URLs producing the same code, which you'd then have to detect and resolve.)</p>
+<div class="box warning"><span class="tag">⚠️</span><b class="t">A subtle trade-off: 301 vs 302 redirect</b>
+A <strong>301 (permanent)</strong> redirect lets browsers cache it, so repeat clicks skip your server entirely — fast and cheap, but you lose click analytics. A <strong>302 (temporary)</strong> sends every click through your server, enabling analytics but adding load. Bitly uses 302 precisely because click tracking is its business. Same feature, opposite choice, driven by a business requirement.</div>
+
+<h3 id="cs-twitter">2 · Twitter / X — the news feed</h3>
+<p><strong>The challenge:</strong> when you open the app, instantly show a timeline of recent tweets from everyone you follow — for 100s of millions of users, where some accounts have 100M+ followers.</p>
+<p><strong>Requirements.</strong> Functional: post a tweet, follow people, view your home timeline. Non-functional: timeline must load fast, enormous scale, eventual consistency is fine (a tweet appearing a second late is OK).</p>
+<p><strong>The core problem — "fan-out."</strong> How do you build each user's timeline? Two strategies:</p>
+<ul>
+  <li><strong>Fan-out on read (pull):</strong> when you open the app, fetch recent tweets from everyone you follow and merge them <em>right then</em>. Simple writes, but timeline reads are slow and expensive (and you read constantly).</li>
+  <li><strong>Fan-out on write (push):</strong> the moment someone tweets, immediately copy it into the pre-built timeline cache of every follower. Reads become instant (just read your ready-made list), but a tweet from someone with 50M followers means 50M writes.</li>
+</ul>
+
+<figure>
+<svg viewBox="0 0 720 215" role="img" aria-label="Fan-out on write pushes a new tweet into each follower's timeline cache; celebrities use fan-out on read">
+  <text x="360" y="16" class="s-title">Hybrid fan-out: push for most, pull for celebrities</text>
+  <rect x="30" y="80" width="96" height="44" rx="8" class="s-box"/><text x="78" y="106" class="s-lbl-c">New tweet</text>
+  <rect x="175" y="78" width="110" height="48" rx="9" class="s-purple"/><text x="230" y="100" class="s-lbl-c">Fan-out</text><text x="230" y="117" class="s-sub-c">service</text>
+  <rect x="350" y="30" width="150" height="38" rx="8" class="s-amber"/><text x="425" y="53" class="s-lbl-c">Follower 1 timeline</text>
+  <rect x="350" y="78" width="150" height="38" rx="8" class="s-amber"/><text x="425" y="101" class="s-lbl-c">Follower 2 timeline</text>
+  <rect x="350" y="126" width="150" height="38" rx="8" class="s-amber"/><text x="425" y="149" class="s-lbl-c">Follower 3 timeline</text>
+  <rect x="540" y="78" width="150" height="50" rx="8" class="s-box"/><text x="615" y="100" class="s-lbl-c">Celebrity tweets</text><text x="615" y="117" class="s-sub-c">pulled at read time</text>
+  <line x1="126" y1="102" x2="173" y2="102" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="285" y1="98" x2="348" y2="50" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="285" y1="102" x2="348" y2="97" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="285" y1="106" x2="348" y2="145" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <text x="305" y="180" class="s-sub-c">push (write)</text>
+  <text x="615" y="150" class="s-sub-c">merge on read</text>
+</svg>
+<figcaption>Push tweets into followers' ready-made timelines so reads are instant — but for celebrities with millions of followers, skip the push and merge their tweets in when the reader opens the app.</figcaption>
+</figure>
+
+<div class="box takeaway"><span class="tag">✅</span><b class="t">The key insight — go hybrid</b>
+Use <strong>fan-out on write for normal users</strong> (instant timelines), but for <strong>celebrities, switch to fan-out on read</strong> — don't copy their tweet to 50M timelines; instead, when a user opens their feed, fetch their ready-made list and <em>merge in</em> the few celebrities they follow. This "best of both" approach is how Twitter tamed the celebrity problem. It's a beautiful example of choosing different trade-offs for different cases within one system.</div>
+
+<h3 id="cs-chat">3 · WhatsApp — real-time chat</h3>
+<p><strong>The challenge:</strong> deliver messages between people instantly and reliably, show who's online, work across billions of users, and deliver messages even if the recipient is currently offline.</p>
+<p><strong>Requirements.</strong> Functional: 1:1 and group chat, delivery/read receipts, online presence, offline delivery. Non-functional: very low latency, reliable (never lose a message), massive scale.</p>
+<p><strong>The core problem — staying connected.</strong> Normal web requests are one-shot (ask, get answer, disconnect). But chat needs the server to <em>push</em> a message to you the instant it arrives, without you asking. The answer is a <strong>persistent connection</strong> (a WebSocket) that stays open, so messages flow both ways in real time.</p>
+
+<figure>
+<svg viewBox="0 0 720 210" role="img" aria-label="Chat architecture: clients hold persistent connections to gateway servers, routed through a message service and queue">
+  <text x="360" y="16" class="s-title">Chat — persistent connections + a router</text>
+  <rect x="30" y="40" width="84" height="38" rx="8" class="s-gray"/><text x="72" y="64" class="s-lbl-c">Alice</text>
+  <rect x="30" y="130" width="84" height="38" rx="8" class="s-gray"/><text x="72" y="154" class="s-lbl-c">Bob</text>
+  <rect x="165" y="40" width="110" height="38" rx="8" class="s-box"/><text x="220" y="64" class="s-lbl-c">Gateway A</text>
+  <rect x="165" y="130" width="110" height="38" rx="8" class="s-box"/><text x="220" y="154" class="s-lbl-c">Gateway B</text>
+  <rect x="330" y="85" width="120" height="44" rx="9" class="s-purple"/><text x="390" y="107" class="s-lbl-c">Message</text><text x="390" y="124" class="s-sub-c">router service</text>
+  <rect x="500" y="35" width="100" height="40" rx="8" class="s-box" style="fill:#E0F2F1;stroke:#0E8074"/><text x="550" y="60" class="s-lbl-c">Presence</text>
+  <g><ellipse cx="550" cy="135" rx="46" ry="11" class="s-green"/><rect x="504" y="135" width="92" height="42" fill="var(--green-light)"/><line x1="504" y1="135" x2="504" y2="177" class="s-green"/><line x1="596" y1="135" x2="596" y2="177" class="s-green"/><ellipse cx="550" cy="177" rx="46" ry="11" class="s-green"/><ellipse cx="550" cy="135" rx="46" ry="11" class="s-green"/><text x="550" y="162" class="s-lbl-c">Msg store</text></g>
+  <line x1="114" y1="59" x2="163" y2="59" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="114" y1="149" x2="163" y2="149" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <text x="138" y="50" class="s-sub-c">WebSocket</text>
+  <line x1="275" y1="62" x2="330" y2="98" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="275" y1="146" x2="330" y2="118" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="450" y1="100" x2="502" y2="135" class="s-dash" marker-end="url(#arrow)"/>
+  <text x="470" y="125" class="s-sub-c">store</text>
+</svg>
+<figcaption>Each user holds an open connection to a gateway. To send Alice→Bob, the router finds which gateway Bob is connected to and pushes the message there; if Bob is offline, it's stored and delivered when he reconnects.</figcaption>
+</figure>
+
+<p><strong>How a message travels.</strong> Alice's app sends over its open connection to Gateway A. A message router looks up where Bob is connected (Gateway B) and pushes it there instantly. The message is also saved so that delivery is guaranteed: if Bob is offline, it waits in storage and is delivered the moment he reconnects. Receipts (✓ sent, ✓✓ delivered, blue ✓✓ read) are just small status events flowing back the same way.</p>
+<div class="box deep"><span class="tag">🔬</span><b class="t">The scale trick — connection servers</b>
+A single server can hold a huge number of idle open connections (the famous WhatsApp engineering feat was millions per server). So the fleet is split into many "connection/gateway" servers, and a fast lookup (e.g. in Redis) maps each online user to their current gateway. The hard parts are managing millions of long-lived connections and routing between them — very different from stateless request/response systems.</div>
+
+<h3 id="cs-netflix">4 · Netflix — video streaming</h3>
+<p><strong>The challenge:</strong> stream high-quality video to hundreds of millions of people worldwide, simultaneously, with minimal buffering — that's an astronomical amount of data moving every second.</p>
+<p><strong>Requirements.</strong> Functional: browse catalog, get recommendations, play video smoothly. Non-functional: gigantic bandwidth, low startup time and no buffering, global reach, high availability.</p>
+<p><strong>The key insight #1 — split the "control plane" from the "data plane."</strong> Two completely different problems live here: (a) the app's logic — browsing, search, recommendations, billing (lots of small requests, handled by microservices in the cloud), and (b) actually delivering the giant video files (handled almost entirely by a <strong>CDN</strong>, not Netflix's core servers).</p>
+
+<figure>
+<svg viewBox="0 0 720 210" role="img" aria-label="Netflix separates cloud microservices for browsing from a CDN that delivers the actual video">
+  <text x="360" y="16" class="s-title">Control plane (cloud) vs data plane (CDN)</text>
+  <rect x="30" y="85" width="84" height="44" rx="8" class="s-gray"/><text x="72" y="111" class="s-lbl-c">Client</text>
+  <!-- control plane -->
+  <rect x="170" y="35" width="300" height="70" rx="10" fill="#F5F9FC" stroke="var(--blue)" stroke-dasharray="4 3"/>
+  <text x="320" y="52" class="s-sub-c">Control plane — cloud microservices</text>
+  <rect x="185" y="62" width="86" height="32" rx="6" class="s-box"/><text x="228" y="83" class="s-sub-c">Catalog</text>
+  <rect x="280" y="62" width="86" height="32" rx="6" class="s-box"/><text x="323" y="83" class="s-sub-c">Recommend</text>
+  <rect x="375" y="62" width="86" height="32" rx="6" class="s-box"/><text x="418" y="83" class="s-sub-c">Billing</text>
+  <!-- data plane -->
+  <rect x="170" y="130" width="300" height="60" rx="10" class="s-purple" style="fill:#EEE8F5"/>
+  <text x="320" y="152" class="s-lbl-c">CDN edge servers (Open Connect)</text><text x="320" y="171" class="s-sub-c">cached video inside your ISP</text>
+  <line x1="114" y1="100" x2="168" y2="80" class="s-edge" marker-end="url(#arrow)"/><text x="135" y="75" class="s-sub-c">browse</text>
+  <line x1="114" y1="112" x2="168" y2="158" class="s-edge-b" marker-end="url(#arrowb)"/><text x="130" y="150" class="s-sub-c">video</text>
+  <rect x="520" y="60" width="170" height="36" rx="8" class="s-amber"/><text x="605" y="83" class="s-lbl-c">Transcoding pipeline</text>
+  <line x1="470" y1="78" x2="518" y2="78" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="605" y1="96" x2="470" y2="150" class="s-dash" marker-end="url(#arrow)"/>
+  <text x="560" y="120" class="s-sub-c">pre-encode &amp;<tspan x="560" dy="14">push to edges</tspan></text>
+</svg>
+<figcaption>Browsing is handled by cloud microservices; the heavy video is served from CDN boxes placed inside internet providers, near you. Netflix's core almost never sends you video bytes directly.</figcaption>
+</figure>
+
+<p><strong>The key insight #2 — pre-process everything, then push it to the edge.</strong> When a show is added, a <strong>transcoding pipeline</strong> (a huge fleet of background workers) encodes it into many resolutions and formats (so it plays on a phone, a 4K TV, a slow connection). These files are then <em>proactively copied</em> to thousands of CDN servers worldwide <em>before</em> you press play. So when you hit play, the video streams from a box a few miles away.</p>
+<div class="box deep"><span class="tag">🔬</span><b class="t">Adaptive bitrate streaming</b>
+The video is chopped into a few-seconds-long chunks at every quality level. Your player constantly measures your connection speed and requests the next chunk at the best quality it can sustain — dropping to lower quality if your wifi dips, climbing back up when it recovers. That's why video gets blurry for a moment instead of freezing. It's a quality-vs-smoothness trade-off made automatically, chunk by chunk.</div>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">The lesson</b>
+For media at scale, the architecture is dominated by <strong>CDNs and pre-processing</strong>. You do the expensive work (encoding) once, ahead of time, and serve from the edge — turning an impossible bandwidth problem into a solved one.</div>
+
+<h3 id="cs-uber">5 · Uber — ride-hailing &amp; geospatial matching</h3>
+<p><strong>The challenge:</strong> when a rider requests a ride, find nearby available drivers within seconds, match them, and track both in real time on a map — while millions of drivers continuously broadcast their location.</p>
+<p><strong>Requirements.</strong> Functional: drivers share live location; riders request rides; match rider to a close driver; live tracking; pricing. Non-functional: low-latency matching, handle constant location updates, high availability, regional scale.</p>
+<p><strong>The core problem — "find things near me" at scale.</strong> Checking the distance from a rider to <em>every</em> driver on Earth is impossibly slow. You need to instantly narrow down to "drivers within ~2 km." The trick is a <strong>geospatial index</strong>: divide the world map into small cells, and label each driver by which cell they're in.</p>
+
+<figure>
+<svg viewBox="0 0 720 210" role="img" aria-label="Uber divides the map into grid cells so matching only searches drivers in nearby cells">
+  <text x="360" y="16" class="s-title">Geo-indexing: only search nearby cells</text>
+  <!-- grid -->
+  <g stroke="var(--border)" stroke-width="1" fill="none">
+    <rect x="40" y="35" width="180" height="150"/>
+    <line x1="100" y1="35" x2="100" y2="185"/><line x1="160" y1="35" x2="160" y2="185"/>
+    <line x1="40" y1="85" x2="220" y2="85"/><line x1="40" y1="135" x2="220" y2="135"/>
+  </g>
+  <circle cx="130" cy="110" r="8" class="s-amber"/><text x="130" y="113" class="s-sub-c" style="font-size:9px;text-anchor:middle">R</text>
+  <circle cx="115" cy="95" r="5" class="s-box"/><circle cx="145" cy="125" r="5" class="s-box"/><circle cx="150" cy="100" r="5" class="s-box"/>
+  <circle cx="70" cy="60" r="5" class="s-gray"/><circle cx="190" cy="160" r="5" class="s-gray"/>
+  <rect x="100" y="85" width="60" height="50" fill="var(--amber)" opacity="0.12"/>
+  <text x="130" y="200" class="s-sub-c">R = rider; search only the highlighted cells</text>
+  <!-- services -->
+  <rect x="300" y="40" width="110" height="40" rx="8" class="s-box"/><text x="355" y="65" class="s-lbl-c">Drivers</text>
+  <rect x="300" y="100" width="110" height="48" rx="9" class="s-box" style="fill:#E0F2F1;stroke:#0E8074"/><text x="355" y="122" class="s-lbl-c">Location svc</text><text x="355" y="139" class="s-sub-c">geo-index (Redis)</text>
+  <rect x="470" y="100" width="120" height="48" rx="9" class="s-purple"/><text x="530" y="122" class="s-lbl-c">Matching</text><text x="530" y="139" class="s-sub-c">service</text>
+  <rect x="470" y="40" width="120" height="40" rx="8" class="s-gray"/><text x="530" y="65" class="s-lbl-c">Rider app</text>
+  <line x1="355" y1="80" x2="355" y2="98" class="s-edge" marker-end="url(#arrow)"/><text x="392" y="92" class="s-sub-c">updates</text>
+  <line x1="410" y1="124" x2="468" y2="124" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="530" y1="80" x2="530" y2="98" class="s-edge-b" marker-end="url(#arrowb)"/><text x="568" y="92" class="s-sub-c">request</text>
+  <line x1="220" y1="110" x2="298" y2="120" class="s-dash" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>Drivers' positions are stored in a geo-index keyed by map cell. To match a rider, the system looks only at drivers in the rider's cell and its neighbors — a handful, not millions.</figcaption>
+</figure>
+
+<div class="box analogy"><span class="tag">🗺️</span><b class="t">Analogy</b>
+It's like finding a friend in a stadium. You don't scan all 60,000 seats — you note "Section 114, Row M" and look only there. Map cells (often via <strong>geohashing</strong> or a <strong>QuadTree</strong>) are those section labels. To match, search the rider's cell and the cells touching it.</div>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">The lesson</b>
+Location data needs <strong>spatial indexing</strong>, and the constant stream of driver pings is held in a fast in-memory store (Redis) rather than a slow disk database — because positions change every few seconds and don't need to survive forever. Matching, pricing, and trip management are then separate services.</div>
+
+<h3 id="cs-instagram">6 · Instagram — photo sharing</h3>
+<p><strong>The challenge:</strong> let users upload photos, follow others, and scroll an endless feed — fast, at billion-user scale.</p>
+<p><strong>Requirements.</strong> Functional: upload photos, follow users, view feed, like/comment. Non-functional: very read-heavy, fast feed and image loads, huge storage, high availability.</p>
+<p><strong>The key insight — separate the heavy bytes from the light data.</strong> A photo is large (megabytes); its metadata (who posted it, caption, likes) is tiny. Storing photos <em>in</em> the database would be slow and expensive. So: store the actual image files in cheap <strong>object storage</strong> (like Amazon S3) fronted by a <strong>CDN</strong>, and store only the <em>metadata plus a link to the file</em> in the database.</p>
+
+<figure>
+<svg viewBox="0 0 720 195" role="img" aria-label="Instagram stores images in object storage and CDN, metadata in a database, with a fan-out feed">
+  <text x="360" y="16" class="s-title">Photos → object storage/CDN · metadata → DB</text>
+  <rect x="30" y="80" width="84" height="42" rx="8" class="s-gray"/><text x="72" y="106" class="s-lbl-c">Client</text>
+  <rect x="160" y="80" width="100" height="42" rx="8" class="s-box"/><text x="210" y="106" class="s-lbl-c">Upload svc</text>
+  <rect x="310" y="30" width="140" height="42" rx="8" class="s-purple" style="fill:#EEE8F5"/><text x="380" y="51" class="s-lbl-c">Object store + CDN</text><text x="380" y="66" class="s-sub-c">the image bytes</text>
+  <g><ellipse cx="380" cy="130" rx="50" ry="12" class="s-green"/><rect x="330" y="130" width="100" height="42" fill="var(--green-light)"/><line x1="330" y1="130" x2="330" y2="172" class="s-green"/><line x1="430" y1="130" x2="430" y2="172" class="s-green"/><ellipse cx="380" cy="172" rx="50" ry="12" class="s-green"/><ellipse cx="380" cy="130" rx="50" ry="12" class="s-green"/><text x="380" y="158" class="s-lbl-c">Metadata DB</text></g>
+  <rect x="500" y="80" width="110" height="48" rx="9" class="s-amber"/><text x="555" y="102" class="s-lbl-c">Feed cache</text><text x="555" y="119" class="s-sub-c">fan-out timelines</text>
+  <line x1="114" y1="101" x2="158" y2="101" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="260" y1="92" x2="308" y2="55" class="s-edge-b" marker-end="url(#arrowb)"/><text x="270" y="68" class="s-sub-c">file</text>
+  <line x1="260" y1="105" x2="328" y2="135" class="s-edge" marker-end="url(#arrow)"/><text x="268" y="135" class="s-sub-c">caption, link</text>
+  <line x1="430" y1="135" x2="498" y2="110" class="s-edge" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>Upload splits in two: the big image goes to object storage + CDN; the small metadata row goes to the database. The feed (like Twitter's) is built by fan-out and served from cache.</figcaption>
+</figure>
+
+<p>The <strong>feed</strong> is the same fan-out problem as Twitter (push posts into followers' cached timelines, with a pull/hybrid approach for the most-followed accounts). Loading the feed returns metadata + image URLs; the images themselves stream straight from the nearest CDN edge.</p>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">The lesson — a pattern you'll reuse constantly</b>
+<strong>Big blobs (images, video, files) → object storage + CDN. Small structured data (who, when, captions) → database.</strong> Never put large binary files in your primary database. This single principle appears in Instagram, YouTube, Dropbox, and almost every media app.</div>
+
+<h3 id="cs-youtube">7 · YouTube — user-generated video at scale</h3>
+<p><strong>The challenge:</strong> Netflix's streaming problem <em>plus</em> letting anyone upload (hundreds of hours of video every minute), then transcode, store, search, recommend, and count views — for billions of videos.</p>
+<p><strong>Requirements.</strong> Functional: upload, process, stream, search, recommend, comment, view counts. Non-functional: massive write (uploads) <em>and</em> read (views) volume, huge storage, smooth global playback.</p>
+<p><strong>The key insight — a giant asynchronous processing pipeline.</strong> When you upload, the raw file lands in object storage and you immediately get "processing…". The heavy work is queued: a fleet of <strong>transcoding workers</strong> encodes it into many resolutions/formats, generates thumbnails, runs content checks — then pushes the results to the CDN. The user never waits for any of this.</p>
+
+<figure>
+<svg viewBox="0 0 720 200" role="img" aria-label="YouTube upload pipeline: store raw video, queue transcoding jobs, workers encode and push to CDN">
+  <text x="360" y="16" class="s-title">Upload → queue → transcode → CDN</text>
+  <rect x="20" y="80" width="80" height="42" rx="8" class="s-gray"/><text x="60" y="106" class="s-lbl-c">Uploader</text>
+  <rect x="135" y="80" width="96" height="42" rx="8" class="s-box"/><text x="183" y="106" class="s-lbl-c">Upload svc</text>
+  <rect x="265" y="80" width="96" height="42" rx="8" class="s-box" style="fill:#E0F2F1;stroke:#0E8074"/><text x="313" y="101" class="s-lbl-c">Job queue</text><text x="313" y="116" class="s-sub-c">transcode</text>
+  <rect x="395" y="40" width="96" height="36" rx="7" class="s-box"/><text x="443" y="63" class="s-lbl-c">Worker</text>
+  <rect x="395" y="86" width="96" height="36" rx="7" class="s-box"/><text x="443" y="109" class="s-lbl-c">Worker</text>
+  <rect x="395" y="132" width="96" height="36" rx="7" class="s-box"/><text x="443" y="155" class="s-lbl-c">Worker</text>
+  <rect x="525" y="40" width="170" height="40" rx="8" class="s-purple" style="fill:#EEE8F5"/><text x="610" y="65" class="s-lbl-c">CDN (playback)</text>
+  <g><ellipse cx="610" cy="130" rx="48" ry="11" class="s-green"/><rect x="562" y="130" width="96" height="40" fill="var(--green-light)"/><line x1="562" y1="130" x2="562" y2="170" class="s-green"/><line x1="658" y1="130" x2="658" y2="170" class="s-green"/><ellipse cx="610" cy="170" rx="48" ry="11" class="s-green"/><ellipse cx="610" cy="130" rx="48" ry="11" class="s-green"/><text x="610" y="156" class="s-lbl-c">Object store</text></g>
+  <line x1="100" y1="101" x2="133" y2="101" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="231" y1="101" x2="263" y2="101" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="361" y1="95" x2="393" y2="60" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="361" y1="101" x2="393" y2="104" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="361" y1="107" x2="393" y2="148" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="491" y1="58" x2="523" y2="58" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="491" y1="104" x2="560" y2="140" class="s-edge" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>Uploads return instantly; transcoding happens on background workers pulled from a queue, then encoded videos are stored and pushed to the CDN for playback (exactly the Netflix delivery model).</figcaption>
+</figure>
+
+<div class="box deep"><span class="tag">🔬</span><b class="t">The sneaky-hard part — counting views</b>
+A view count looks trivial but is a famous distributed-systems problem. A viral video gets millions of views per minute from servers worldwide; you cannot do "<code>UPDATE … SET views = views + 1</code>" on one database row that fast — it becomes a bottleneck and a write conflict nightmare. The fix: count <strong>approximately and asynchronously</strong> — buffer increments across many servers, aggregate them in the background, and update the displayed count every so often. That's why view counts are eventually consistent and sometimes "jump." Exact, instant counting at that scale isn't worth its cost.</div>
+
+<h3 id="cs-search">8 · Google Search — crawling, indexing, ranking</h3>
+<p><strong>The challenge:</strong> search the <em>entire</em> web and return relevant, ranked results in a fraction of a second.</p>
+<p><strong>Requirements.</strong> Functional: discover web pages, understand their content, answer a query with the best-ranked pages. Non-functional: web-scale storage, sub-second query latency, fresh results, massive query volume.</p>
+<p><strong>The key insight — do all the hard work <em>offline</em>, ahead of time.</strong> Search has two separate worlds: a slow <strong>offline pipeline</strong> that continuously crawls and pre-processes the web, and a fast <strong>online path</strong> that answers your query from the pre-built results. You never search the live web when you type — you search a prepared index.</p>
+
+<figure>
+<svg viewBox="0 0 720 215" role="img" aria-label="Search splits into an offline crawl-and-index pipeline and a fast online query path">
+  <text x="200" y="16" class="s-title">Offline: build the index</text>
+  <text x="560" y="16" class="s-title">Online: answer fast</text>
+  <line x1="400" y1="28" x2="400" y2="205" stroke="var(--border)" stroke-dasharray="4 4"/>
+  <rect x="30" y="40" width="96" height="40" rx="8" class="s-box"/><text x="78" y="65" class="s-lbl-c">Crawler</text>
+  <rect x="30" y="105" width="96" height="40" rx="8" class="s-box"/><text x="78" y="130" class="s-lbl-c">Parser</text>
+  <rect x="170" y="72" width="110" height="46" rx="9" class="s-amber"/><text x="225" y="94" class="s-lbl-c">Indexer</text><text x="225" y="110" class="s-sub-c">word → pages</text>
+  <g><ellipse cx="330" cy="80" rx="46" ry="11" class="s-green"/><rect x="284" y="80" width="92" height="56" fill="var(--green-light)"/><line x1="284" y1="80" x2="284" y2="136" class="s-green"/><line x1="376" y1="80" x2="376" y2="136" class="s-green"/><ellipse cx="330" cy="136" rx="46" ry="11" class="s-green"/><ellipse cx="330" cy="80" rx="46" ry="11" class="s-green"/><text x="330" y="104" class="s-lbl-c">Inverted</text><text x="330" y="120" class="s-lbl-c">index</text></g>
+  <line x1="78" y1="80" x2="78" y2="103" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="126" y1="120" x2="168" y2="100" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="280" y1="95" x2="283" y2="100" class="s-edge" marker-end="url(#arrow)"/>
+  <text x="78" y="170" class="s-sub-c">crawls the web,</text><text x="78" y="185" class="s-sub-c">follows links</text>
+  <!-- online -->
+  <rect x="440" y="40" width="84" height="40" rx="8" class="s-gray"/><text x="482" y="65" class="s-lbl-c">User</text>
+  <rect x="440" y="105" width="110" height="46" rx="9" class="s-purple"/><text x="495" y="127" class="s-lbl-c">Query svc</text><text x="495" y="143" class="s-sub-c">+ ranking</text>
+  <rect x="600" y="105" width="100" height="46" rx="9" class="s-amber"/><text x="650" y="127" class="s-lbl-c">Ranked</text><text x="650" y="143" class="s-sub-c">results</text>
+  <line x1="482" y1="80" x2="490" y2="103" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="550" y1="128" x2="598" y2="128" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="376" y1="110" x2="438" y2="125" class="s-dash" marker-end="url(#arrow)"/>
+  <text x="408" y="150" class="s-sub-c">look up</text>
+</svg>
+<figcaption>Crawlers fetch pages; the indexer builds an "inverted index" (word → the list of pages containing it); at query time the system just looks up your words in that index and ranks the matches.</figcaption>
+</figure>
+
+<p>Three offline stages: a distributed <strong>crawler</strong> downloads pages and follows their links (politely, without overwhelming sites); a <strong>parser</strong> extracts the text; an <strong>indexer</strong> builds the magic data structure — the <strong>inverted index</strong>.</p>
+<div class="box analogy"><span class="tag">📇</span><b class="t">The inverted index — the core idea</b>
+Instead of "page → words on it," flip it: "word → every page that contains it." So "pizza" maps to a list of all pages mentioning pizza. Now a search for "pizza recipe" is two instant list lookups plus finding the overlap — not reading the whole web. It's exactly the back-of-book index idea from earlier, applied to the entire internet.</div>
+<div class="box deep"><span class="tag">🔬</span><b class="t">Ranking — which result comes first?</b>
+Many pages match "pizza recipe," so the order matters more than the matching. The famous original signal was <strong>PageRank</strong>: a page is important if many other important pages link to it (like academic citations — being cited by respected work means more). Modern ranking blends hundreds of signals (relevance, freshness, quality, location, and machine-learned models), but the principle stands: <em>matching is easy; ranking is the hard, valuable part.</em></div>
+
+<h3 id="cs-dropbox">9 · Dropbox — file storage &amp; sync</h3>
+<p><strong>The challenge:</strong> store users' files reliably and keep them in sync across all their devices — so an edit on your laptop appears on your phone moments later — without re-uploading entire files every time.</p>
+<p><strong>Requirements.</strong> Functional: upload/download files, sync across devices, share, version history. Non-functional: durable (never lose a file), bandwidth-efficient, handle large files, scalable storage.</p>
+<p><strong>The key insight #1 — split files into chunks.</strong> A file is broken into fixed-size <strong>blocks</strong> (say 4 MB each). Each block gets a fingerprint (a hash of its contents). The system tracks files as <em>ordered lists of block fingerprints</em>. This unlocks two huge wins.</p>
+
+<figure>
+<svg viewBox="0 0 720 200" role="img" aria-label="Dropbox splits files into chunks; only changed chunks sync; metadata and blocks are stored separately">
+  <text x="360" y="16" class="s-title">Chunk the file · sync only what changed</text>
+  <!-- file chunks -->
+  <text x="95" y="42" class="s-sub-c">File → blocks</text>
+  <rect x="40" y="50" width="34" height="28" rx="4" class="s-box"/><rect x="78" y="50" width="34" height="28" rx="4" class="s-box"/>
+  <rect x="116" y="50" width="34" height="28" rx="4" class="s-amber"/><rect x="154" y="50" width="34" height="28" rx="4" class="s-box"/>
+  <text x="133" y="95" class="s-sub-c" style="fill:var(--amber)">only this</text><text x="133" y="108" class="s-sub-c" style="fill:var(--amber)">block changed</text>
+  <rect x="40" y="130" width="100" height="44" rx="8" class="s-gray"/><text x="90" y="156" class="s-lbl-c">Device</text>
+  <!-- services -->
+  <rect x="250" y="48" width="120" height="44" rx="9" class="s-purple"/><text x="310" y="70" class="s-lbl-c">Metadata svc</text><text x="310" y="86" class="s-sub-c">file → block list</text>
+  <rect x="250" y="130" width="120" height="44" rx="9" class="s-box"/><text x="310" y="152" class="s-lbl-c">Sync / notify</text><text x="310" y="168" class="s-sub-c">push changes</text>
+  <rect x="430" y="48" width="130" height="44" rx="9" class="s-purple" style="fill:#EEE8F5"/><text x="495" y="70" class="s-lbl-c">Block storage</text><text x="495" y="86" class="s-sub-c">object store (S3)</text>
+  <rect x="600" y="130" width="100" height="44" rx="8" class="s-gray"/><text x="650" y="156" class="s-lbl-c">Other device</text>
+  <line x1="140" y1="64" x2="248" y2="68" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="370" y1="68" x2="428" y2="68" class="s-edge-b" marker-end="url(#arrowb)"/><text x="399" y="60" class="s-sub-c">block</text>
+  <line x1="140" y1="152" x2="248" y2="152" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="370" y1="152" x2="598" y2="152" class="s-edge-b" marker-end="url(#arrowb)"/><text x="470" y="144" class="s-sub-c">notify "new version"</text>
+</svg>
+<figcaption>The metadata service stores each file as a list of block fingerprints; the blocks live in object storage. Editing a file re-uploads only the changed block, and a notification tells other devices to pull it.</figcaption>
+</figure>
+
+<ul>
+  <li><strong>Delta sync:</strong> change one paragraph in a 1 GB file and only the <em>one block</em> that changed is uploaded — not the whole gigabyte. Massive bandwidth savings.</li>
+  <li><strong>Deduplication:</strong> if two users store the same file (or the same block appears twice), it's stored once — the fingerprints match, so you keep a single copy.</li>
+</ul>
+<p><strong>The key insight #2 — separate metadata from blocks.</strong> A <strong>metadata service</strong> (a database) tracks file names, folders, versions, and the block lists; the actual block contents live in <strong>object storage</strong>. A <strong>sync service</strong> notifies your other devices "there's a new version — come get these blocks." (Same blobs-vs-metadata split as Instagram.)</p>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">The lesson</b>
+<strong>Chunking + fingerprints</strong> turn file sync from "re-send everything" into "send only the difference," and enable dedup and versioning for free. Reliability comes from object storage that replicates each block many times.</div>
+
+<h3 id="cs-amazon">10 · Amazon — e-commerce checkout &amp; inventory</h3>
+<p><strong>The challenge:</strong> a massively read-heavy product catalog, but a checkout flow that must be <em>perfectly correct</em> — never sell the last item twice, never charge without reserving stock, never lose an order.</p>
+<p><strong>Requirements.</strong> Functional: browse catalog, cart, checkout, inventory, payment, orders. Non-functional: catalog must be fast at huge read scale; checkout must be strongly consistent and reliable.</p>
+<p><strong>The key insight #1 — two systems with opposite needs.</strong> The <strong>catalog</strong> (browsing) is read-heavy and tolerant of slight staleness → cache it hard, use replicas, serve images from a CDN, prioritize availability. The <strong>checkout</strong> (inventory + payment) is correctness-critical → use a strongly consistent (ACID) database; here, being right beats being fast.</p>
+
+<figure>
+<svg viewBox="0 0 720 215" role="img" aria-label="Amazon separates a cached read-heavy catalog from a strongly consistent checkout, with a saga for the order workflow">
+  <text x="360" y="16" class="s-title">Fast catalog (AP) + correct checkout (CP)</text>
+  <rect x="30" y="90" width="84" height="44" rx="8" class="s-gray"/><text x="72" y="116" class="s-lbl-c">Shopper</text>
+  <!-- catalog -->
+  <rect x="165" y="40" width="110" height="42" rx="8" class="s-amber"/><text x="220" y="61" class="s-lbl-c">Catalog</text><text x="220" y="77" class="s-sub-c">cached, replicas</text>
+  <!-- checkout -->
+  <rect x="165" y="135" width="110" height="44" rx="9" class="s-box"/><text x="220" y="157" class="s-lbl-c">Checkout</text><text x="220" y="173" class="s-sub-c">orchestrator</text>
+  <rect x="320" y="105" width="100" height="34" rx="7" class="s-box"/><text x="370" y="127" class="s-sub-c">1. Reserve stock</text>
+  <rect x="320" y="148" width="100" height="34" rx="7" class="s-box"/><text x="370" y="170" class="s-sub-c">2. Charge card</text>
+  <rect x="320" y="191" width="100" height="20" rx="6" class="s-box"/><text x="370" y="205" class="s-sub-c" style="font-size:10px">3. Create order</text>
+  <g><ellipse cx="520" cy="110" rx="46" ry="11" class="s-green"/><rect x="474" y="110" width="92" height="40" fill="var(--green-light)"/><line x1="474" y1="110" x2="474" y2="150" class="s-green"/><line x1="566" y1="110" x2="566" y2="150" class="s-green"/><ellipse cx="520" cy="150" rx="46" ry="11" class="s-green"/><ellipse cx="520" cy="110" rx="46" ry="11" class="s-green"/><text x="520" y="135" class="s-lbl-c">Inventory DB</text><text x="520" y="100" class="s-sub-c" style="fill:var(--green)">ACID</text></g>
+  <line x1="114" y1="100" x2="163" y2="65" class="s-edge" marker-end="url(#arrow)"/><text x="130" y="95" class="s-sub-c">browse</text>
+  <line x1="114" y1="118" x2="163" y2="155" class="s-edge-b" marker-end="url(#arrowb)"/><text x="128" y="148" class="s-sub-c">buy</text>
+  <line x1="275" y1="150" x2="318" y2="125" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="420" y1="122" x2="472" y2="128" class="s-edge" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>Browsing and buying are architecturally different. The order is a multi-step workflow (reserve → charge → create) — a Saga — running against a strongly consistent inventory database.</figcaption>
+</figure>
+
+<p><strong>The key insight #2 — the order is a Saga.</strong> Checkout spans several services: reserve inventory, charge payment, create the order, trigger shipping. You can't wrap them in one database transaction, so you use the <a href="#distributed-tx" class="inline">Saga pattern</a>: do each step, and if a later one fails (payment declined), run <strong>compensating actions</strong> (release the reserved stock). To prevent overselling the last unit, the inventory decrement uses a strongly consistent, atomic operation ("decrement only if stock &gt; 0").</p>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">The lesson</b>
+One product can need <strong>both AP and CP</strong> in different places. Match each part's consistency model to its risk: stale catalog data is harmless; a wrong inventory count or double charge is not. This is the CAP theorem applied with judgment.</div>
+
+<h3 id="cs-ticketmaster">11 · Ticketmaster — high-contention booking</h3>
+<p><strong>The challenge:</strong> a hot concert goes on sale and <em>millions</em> of people try to grab a <em>limited</em> number of seats in the same instant. You must never sell the same seat twice, never let the rush crash the system, and feel fair.</p>
+<p><strong>Requirements.</strong> Functional: browse seats, reserve, pay, confirm. Non-functional: strong consistency (no double-booking — this is non-negotiable), survive enormous traffic spikes, fairness.</p>
+<p><strong>The key insight #1 — reserve with a timed lock.</strong> When you select a seat, it's <strong>temporarily locked</strong> just for you (e.g. for 10 minutes) while you pay. Others see it as unavailable. If you complete payment, it's yours; if your timer expires, the lock releases and the seat returns to the pool. This prevents two people buying the same seat <em>and</em> stops seats being locked forever by people who wander off.</p>
+
+<figure>
+<svg viewBox="0 0 720 200" role="img" aria-label="Ticketmaster uses a waiting room to throttle traffic and a timed seat lock to prevent double-booking">
+  <text x="360" y="16" class="s-title">Waiting room throttles the flood · timed lock prevents double-booking</text>
+  <rect x="30" y="80" width="90" height="44" rx="8" class="s-gray"/><text x="75" y="106" class="s-lbl-c">Millions</text>
+  <rect x="165" y="78" width="120" height="48" rx="9" class="s-amber"/><text x="225" y="100" class="s-lbl-c">Waiting room</text><text x="225" y="116" class="s-sub-c">admit a few at a time</text>
+  <rect x="335" y="78" width="110" height="48" rx="9" class="s-box"/><text x="390" y="100" class="s-lbl-c">Booking svc</text><text x="390" y="116" class="s-sub-c">lock + pay</text>
+  <g><ellipse cx="560" cy="60" rx="48" ry="12" class="s-green"/><rect x="512" y="60" width="96" height="40" fill="var(--green-light)"/><line x1="512" y1="60" x2="512" y2="100" class="s-green"/><line x1="608" y1="60" x2="608" y2="100" class="s-green"/><ellipse cx="560" cy="100" rx="48" ry="12" class="s-green"/><ellipse cx="560" cy="60" rx="48" ry="12" class="s-green"/><text x="560" y="85" class="s-lbl-c">Seats DB</text><text x="560" y="50" class="s-sub-c" style="fill:var(--green)">strongly consistent</text></g>
+  <rect x="512" y="135" width="96" height="40" rx="8" class="s-box" style="fill:#E0F2F1;stroke:#0E8074"/><text x="560" y="156" class="s-lbl-c">Lock w/ TTL</text><text x="560" y="170" class="s-sub-c">10-min hold</text>
+  <line x1="120" y1="102" x2="163" y2="102" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="285" y1="102" x2="333" y2="102" class="s-edge" marker-end="url(#arrow)"/><text x="290" y="94" class="s-sub-c">trickle</text>
+  <line x1="445" y1="92" x2="512" y2="82" class="s-edge-b" marker-end="url(#arrowb)"/>
+  <line x1="445" y1="108" x2="512" y2="150" class="s-edge" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>A virtual waiting room admits users in controlled batches so the booking service isn't flooded; each seat selection takes a strongly consistent lock with a time-to-live so seats can't be double-sold or held forever.</figcaption>
+</figure>
+
+<p><strong>The key insight #2 — a virtual waiting room.</strong> Rather than let millions hit the booking service at once, a <strong>queue/waiting room</strong> admits users in controlled batches ("You're number 41,032 in line…"). This converts an instantaneous, system-crushing spike into a steady, survivable stream — a direct application of using a queue to absorb load. The seat database itself is strongly consistent (CP): under contention, it's better to make a request wait or fail than to sell one seat twice.</p>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">The lesson</b>
+For scarce, high-contention resources: <strong>throttle the stampede with a queue, and protect correctness with timed locks on a strongly consistent store.</strong> Here you deliberately sacrifice some availability/speed for absolute correctness — the opposite choice from a social feed.</div>
+
+<h3 id="cs-notification">12 · Notification system — push, SMS &amp; email at scale</h3>
+<p><strong>The challenge:</strong> reliably send billions of notifications across multiple channels (mobile push, SMS, email), respecting each user's preferences, without spamming or sending duplicates — even when the external providers you depend on are flaky.</p>
+<p><strong>Requirements.</strong> Functional: send across channels, honor preferences and opt-outs, support templates. Non-functional: high throughput, reliable delivery, no duplicates, graceful handling of third-party failures.</p>
+<p><strong>The key insight — a queue-based fan-out to channel workers.</strong> Anything in the app that wants to notify someone just drops a request into the notification service. It checks preferences, then places jobs onto per-channel <strong>queues</strong>; dedicated <strong>workers</strong> for push, SMS, and email pull from their queue and call the right external provider. The queue decouples the senders from the (often slow, sometimes failing) providers.</p>
+
+<figure>
+<svg viewBox="0 0 720 205" role="img" aria-label="Notification service checks preferences then fans out to per-channel queues and workers that call external providers">
+  <text x="360" y="16" class="s-title">One request → preferences → per-channel queues → providers</text>
+  <rect x="20" y="85" width="90" height="44" rx="8" class="s-box"/><text x="65" y="111" class="s-lbl-c">App event</text>
+  <rect x="150" y="80" width="110" height="50" rx="9" class="s-purple"/><text x="205" y="100" class="s-lbl-c">Notification</text><text x="205" y="117" class="s-sub-c">+ preferences</text>
+  <rect x="310" y="38" width="92" height="32" rx="6" class="s-box" style="fill:#E0F2F1;stroke:#0E8074"/><text x="356" y="59" class="s-sub-c">Push queue</text>
+  <rect x="310" y="90" width="92" height="32" rx="6" class="s-box" style="fill:#E0F2F1;stroke:#0E8074"/><text x="356" y="111" class="s-sub-c">SMS queue</text>
+  <rect x="310" y="142" width="92" height="32" rx="6" class="s-box" style="fill:#E0F2F1;stroke:#0E8074"/><text x="356" y="163" class="s-sub-c">Email queue</text>
+  <rect x="440" y="38" width="80" height="32" rx="6" class="s-box"/><text x="480" y="59" class="s-sub-c">Worker</text>
+  <rect x="440" y="90" width="80" height="32" rx="6" class="s-box"/><text x="480" y="111" class="s-sub-c">Worker</text>
+  <rect x="440" y="142" width="80" height="32" rx="6" class="s-box"/><text x="480" y="163" class="s-sub-c">Worker</text>
+  <rect x="560" y="38" width="140" height="32" rx="6" class="s-amber"/><text x="630" y="59" class="s-sub-c">APNs / FCM</text>
+  <rect x="560" y="90" width="140" height="32" rx="6" class="s-amber"/><text x="630" y="111" class="s-sub-c">SMS gateway</text>
+  <rect x="560" y="142" width="140" height="32" rx="6" class="s-amber"/><text x="630" y="163" class="s-sub-c">Email provider</text>
+  <line x1="110" y1="107" x2="148" y2="107" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="260" y1="95" x2="308" y2="56" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="260" y1="105" x2="308" y2="106" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="260" y1="115" x2="308" y2="156" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="402" y1="54" x2="438" y2="54" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="402" y1="106" x2="438" y2="106" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="402" y1="158" x2="438" y2="158" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="520" y1="54" x2="558" y2="54" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="520" y1="106" x2="558" y2="106" class="s-edge" marker-end="url(#arrow)"/>
+  <line x1="520" y1="158" x2="558" y2="158" class="s-edge" marker-end="url(#arrow)"/>
+</svg>
+<figcaption>The service checks preferences, then fans jobs out to per-channel queues. Workers pull jobs and call external providers, retrying on failure — so one slow provider never blocks the others.</figcaption>
+</figure>
+
+<p>This design quietly uses many earlier concepts at once: <strong>queues</strong> (absorb spikes, retry failures), <strong>idempotency</strong> (a unique key per notification so a retry never double-sends), <strong>rate limiting</strong> (don't blast a user, and respect provider limits), and <strong>graceful degradation</strong> (if the email provider is down, push and SMS still go out; failed emails wait and retry). A dead-letter queue catches messages that fail repeatedly for humans to inspect.</p>
+<div class="box takeaway"><span class="tag">✅</span><b class="t">The lesson — the building blocks compose</b>
+A "simple" notification system is really queues + workers + idempotency + rate limiting + retries + graceful degradation working together. That's the real takeaway of all twelve case studies: <strong>big systems are not exotic — they're the handful of building blocks from Parts 2 and 3, combined thoughtfully to fit specific requirements.</strong></div>
+
+<h2 id="reference"><span class="section-num">Ref</span>Reference</h2>
+
+<h3 id="glossary">Glossary — every key term in one place</h3>
+<table class="tbl">
+  <tr><th>Term</th><th>Plain-English meaning</th></tr>
+  <tr><td><strong>ACID</strong></td><td>Database guarantees (Atomic, Consistent, Isolated, Durable) that keep transactions correct. The hallmark of SQL databases.</td></tr>
+  <tr><td><strong>Availability</strong></td><td>The % of time a system is up and responding. Measured in "nines" (99.9%, 99.99%…).</td></tr>
+  <tr><td><strong>Bloom filter</strong></td><td>A tiny structure that says "definitely not present" or "maybe present" — used to skip slow lookups.</td></tr>
+  <tr><td><strong>Bottleneck</strong></td><td>The single slowest part that limits the whole system's performance.</td></tr>
+  <tr><td><strong>Cache</strong></td><td>Fast (usually in-memory) storage of popular data to avoid slow recomputation or DB hits.</td></tr>
+  <tr><td><strong>CAP theorem</strong></td><td>During a network partition you must choose Consistency or Availability — not both.</td></tr>
+  <tr><td><strong>CDN</strong></td><td>A global network of edge servers that cache static content (images, video) near users.</td></tr>
+  <tr><td><strong>Circuit breaker</strong></td><td>A pattern that stops calling a failing service to prevent cascading failure.</td></tr>
+  <tr><td><strong>Consensus</strong></td><td>Getting multiple machines to agree on one value despite failures (e.g. Raft, Paxos).</td></tr>
+  <tr><td><strong>Consistency (strong/eventual)</strong></td><td>Strong = everyone sees the latest data instantly. Eventual = they converge soon after.</td></tr>
+  <tr><td><strong>Consistent hashing</strong></td><td>A way to assign data to servers so adding/removing a server moves minimal data.</td></tr>
+  <tr><td><strong>CQRS</strong></td><td>Using separate models/stores for writes and reads.</td></tr>
+  <tr><td><strong>Eventual consistency</strong></td><td>Replicas may briefly disagree but converge to the same value if writes stop.</td></tr>
+  <tr><td><strong>Fan-out</strong></td><td>Delivering one item (e.g. a tweet) to many places (followers' timelines).</td></tr>
+  <tr><td><strong>Fault tolerance</strong></td><td>Continuing to work despite component failures, via redundancy.</td></tr>
+  <tr><td><strong>Horizontal scaling</strong></td><td>Adding more machines (vs vertical = a bigger machine).</td></tr>
+  <tr><td><strong>Idempotency</strong></td><td>An operation that has the same effect whether done once or many times — makes retries safe.</td></tr>
+  <tr><td><strong>Index</strong></td><td>A sorted structure that lets a database find rows fast without scanning everything.</td></tr>
+  <tr><td><strong>Inverted index</strong></td><td>"Word → list of pages containing it"; the core of search engines.</td></tr>
+  <tr><td><strong>Latency</strong></td><td>Time for one operation. Measured at percentiles (p95, p99), not averages.</td></tr>
+  <tr><td><strong>Load balancer</strong></td><td>Distributes incoming requests across servers and routes around dead ones.</td></tr>
+  <tr><td><strong>LSM-Tree / B-Tree</strong></td><td>Storage structures optimized for writes (LSM) or reads (B-Tree).</td></tr>
+  <tr><td><strong>Message queue</strong></td><td>A buffer that holds work to be processed later by separate workers (async).</td></tr>
+  <tr><td><strong>Microservices</strong></td><td>Splitting an app into small, independently deployable services (vs a monolith).</td></tr>
+  <tr><td><strong>Object storage</strong></td><td>Cheap, durable storage for large files/blobs (e.g. Amazon S3).</td></tr>
+  <tr><td><strong>Observability</strong></td><td>Understanding a live system via logs, metrics, and traces.</td></tr>
+  <tr><td><strong>Partition (network)</strong></td><td>A break in communication between nodes — the "P" in CAP.</td></tr>
+  <tr><td><strong>Pub/Sub</strong></td><td>Publishers emit events; all interested subscribers receive a copy.</td></tr>
+  <tr><td><strong>Quorum</strong></td><td>A majority agreement; the rule W + R &gt; N guarantees fresh reads.</td></tr>
+  <tr><td><strong>Rate limiting</strong></td><td>Capping how many requests a client may make in a time window.</td></tr>
+  <tr><td><strong>Replication</strong></td><td>Keeping copies of the same data on multiple machines (safety + read scaling).</td></tr>
+  <tr><td><strong>Reverse proxy</strong></td><td>A server in front of your servers that load-balances, caches, secures, etc.</td></tr>
+  <tr><td><strong>Saga</strong></td><td>A multi-step transaction across services with compensating (undo) actions on failure.</td></tr>
+  <tr><td><strong>Sharding</strong></td><td>Splitting one dataset across many machines (each holds a slice).</td></tr>
+  <tr><td><strong>Single point of failure</strong></td><td>A component whose failure takes down the whole system. Avoid via redundancy.</td></tr>
+  <tr><td><strong>SLA / SLO / SLI</strong></td><td>Reliability promise / internal target / the measured indicator.</td></tr>
+  <tr><td><strong>Stateless</strong></td><td>A server that keeps no per-user memory between requests, so any server can handle any request.</td></tr>
+  <tr><td><strong>Throughput</strong></td><td>How many operations finish per second.</td></tr>
+  <tr><td><strong>Vertical scaling</strong></td><td>Upgrading a single machine (more CPU/RAM).</td></tr>
+  <tr><td><strong>WebSocket</strong></td><td>A persistent two-way connection enabling real-time push (used in chat).</td></tr>
+</table>
+
+<h3 id="cheatsheet">The final cheat sheet — "when you see X, reach for Y"</h3>
+<p>Pin this. It maps common problems straight to the tool that solves them.</p>
+<table class="tbl">
+  <tr><th>When the problem is…</th><th>Reach for…</th></tr>
+  <tr><td>Too many reads / slow reads</td><td>Caching (Redis), read replicas, CDN for static content</td></tr>
+  <tr><td>Too many writes</td><td>Sharding, write-optimized (LSM) stores, queues to buffer, async processing</td></tr>
+  <tr><td>Need more capacity</td><td>Horizontal scaling behind a load balancer (keep servers stateless)</td></tr>
+  <tr><td>One slow task blocks the user</td><td>Message queue + background workers (do it later)</td></tr>
+  <tr><td>Dataset too big for one machine</td><td>Sharding / partitioning (choose the shard key carefully)</td></tr>
+  <tr><td>Must never lose data / a machine might die</td><td>Replication + redundancy; durable object storage for files</td></tr>
+  <tr><td>Spiky, bursty traffic</td><td>Queues to absorb the burst; autoscaling; a waiting room for extreme spikes</td></tr>
+  <tr><td>Money / inventory / no double-spend</td><td>Strong consistency (ACID), atomic operations, locks; CP over AP</td></tr>
+  <tr><td>Likes, feeds, view counts</td><td>Eventual consistency, async/approximate counting; AP over CP</td></tr>
+  <tr><td>Multi-step action across services</td><td>Saga pattern with compensating transactions</td></tr>
+  <tr><td>Retries causing duplicates</td><td>Idempotency keys</td></tr>
+  <tr><td>"Find things near me"</td><td>Geospatial index (geohash / QuadTree)</td></tr>
+  <tr><td>Large files (images, video, docs)</td><td>Object storage + CDN; store only metadata in the DB</td></tr>
+  <tr><td>Real-time push (chat, live updates)</td><td>Persistent connections (WebSockets) + a routing/presence service</td></tr>
+  <tr><td>Search over lots of text</td><td>Inverted index; precompute offline, serve fast</td></tr>
+  <tr><td>One failing service dragging others down</td><td>Circuit breakers, bulkheads, timeouts, retries with backoff</td></tr>
+  <tr><td>Building a home feed/timeline</td><td>Fan-out on write (push); hybrid pull for celebrities</td></tr>
+  <tr><td>Adding/removing cache or DB nodes smoothly</td><td>Consistent hashing</td></tr>
+  <tr><td>Global users / region outage protection</td><td>Multi-region + geo-routing + a CDN</td></tr>
+  <tr><td>"Why is production broken?"</td><td>Observability: metrics → dashboards → traces → logs</td></tr>
+</table>
+
+<div class="box example" style="margin-top:30px;"><span class="tag">🎓</span>
+<b class="t">You've reached the end — what now?</b>
+You've gone from "what is a server?" to fan-out timelines, quorum consistency, and Sagas. The best way to cement it: pick any app you use and try to <em>redesign it yourself</em> using the 6-step framework — clarify requirements, estimate scale, sketch the boxes, then ask "where does this break at 10×?" Re-read a case study afterward and you'll spot decisions you now understand from the inside. System design is learned by <em>doing</em>, and you now have the whole toolkit.</div>
+
+<p style="text-align:center;color:var(--faint);font-size:13px;margin:40px 0 0;">Built as a learning companion · revisit any section from the menu · best viewed in a browser, and prints cleanly to PDF.</p>
+
+</main>
+</div>
+
+<button id="toTop" aria-label="Back to top">↑</button>
+
+<script>
+  // reading progress bar
+  var bar = document.getElementById('progress');
+  var toTop = document.getElementById('toTop');
+  function onScroll(){
+    var h = document.documentElement;
+    var scrolled = (h.scrollTop) / (h.scrollHeight - h.clientHeight);
+    bar.style.width = (scrolled*100) + '%';
+    if(h.scrollTop > 600){ toTop.classList.add('show'); } else { toTop.classList.remove('show'); }
+  }
+  document.addEventListener('scroll', onScroll, {passive:true});
+  toTop.addEventListener('click', function(){ window.scrollTo({top:0, behavior:'smooth'}); });
+
+  // active section highlight in the TOC (scrollspy)
+  var links = Array.prototype.slice.call(document.querySelectorAll('nav.toc a'));
+  var map = {};
+  links.forEach(function(a){ var id = a.getAttribute('href').slice(1); map[id] = a; });
+  var targets = Object.keys(map).map(function(id){ return document.getElementById(id); }).filter(Boolean);
+  if('IntersectionObserver' in window){
+    var spy = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(e.isIntersecting){
+          links.forEach(function(l){ l.classList.remove('active'); });
+          var a = map[e.target.id];
+          if(a){ a.classList.add('active'); }
+        }
+      });
+    }, {rootMargin: '-80px 0px -75% 0px'});
+    targets.forEach(function(t){ spy.observe(t); });
+  }
+</script>
+</body>
+</html>
